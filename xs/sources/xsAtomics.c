@@ -18,7 +18,13 @@
  *
  */
 
+#if mxUseLinuxFutex
+#warn FUTEX 1
+#endif
 #include "xsAll.h"
+#if mxUseLinuxFutex
+#warn FUTEX 2
+#endif
 
 static txInteger fxCheckAtomicsIndex(txMachine* the, txInteger index, txInteger length);
 static txSlot* fxCheckAtomicsTypedArray(txMachine* the, txBoolean onlyInt32);
@@ -87,6 +93,9 @@ static void fxPushAtomicsValue(txMachine* the, int i);
 	txInteger index = fxCheckAtomicsIndex(the, 1, view->value.dataView.size / delta); \
 	txInteger offset = view->value.dataView.offset + (index * delta)
 
+#if mxUseLinuxFutex
+#warn FUTEX 2
+#endif
 void fxInt8Add(txMachine* the, txSlot* host, txInteger offset, txSlot* slot, int endian) { mxAtomicsHead1(txS1, fxToInteger); mxAtomicsAdd(); mxAtomicsTail(); }
 void fxInt16Add(txMachine* the, txSlot* host, txInteger offset, txSlot* slot, int endian) { mxAtomicsHead1(txS2, fxToInteger); mxAtomicsAdd(); mxAtomicsTail(); }
 void fxInt32Add(txMachine* the, txSlot* host, txInteger offset, txSlot* slot, int endian) { mxAtomicsHead1(txS4, fxToInteger); mxAtomicsAdd(); mxAtomicsTail(); }
@@ -432,9 +441,15 @@ void fx_Atomics_xor(txMachine* the)
 	mxPullSlot(mxResult);
 }
 
+
+#if mxUseLinuxFutex
+#warning FUTEX 2
+#endif
+
 #ifdef mxUseDefaultSharedChunks
 
 #if defined(mxUseLinuxFutex) && defined(mxUseGCCAtomics)
+	#warning We are futexed up
 	#define mxThreads 1
 	static long futex(void *addr1, int op, int val1, struct timespec *timeout, void *addr2, int val3)
 	{
