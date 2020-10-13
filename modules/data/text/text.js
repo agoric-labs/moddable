@@ -30,9 +30,6 @@ export class TextEncoder {
 		// trace(`encode ${JSON.stringify(s)} -> ArrayBuffer(${arrayBuffer ? arrayBuffer.byteLength : ''}) -> Uint8Array(${bytes.length})\n`);
 		return bytes;
 	}
-	encodeInto() {
-		throw new TypeError('encodeInto not supported');
-	}
 }
 
 const UTF8Names = ["unicode-1-1-utf-8", "utf-8", "utf8"];
