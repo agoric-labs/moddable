@@ -1,0 +1,15 @@
+{
+	"include": [
+		"$(MODDABLE)/examples/manifest_base.json",
+	],
+	"modules": {
+		"*": [
+			"./main",
+			"$(MODDABLE)/modules/data/hex/hex",
+			"$(MODDABLE)/modules/data/hex/modHex",
+			"$(MODDABLE)/modules/data/text/text",
+		],
+	},
+	"preload": [
+	],
+}
