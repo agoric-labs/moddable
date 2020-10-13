@@ -1,4 +1,9 @@
-// ref https://developer.mozilla.org/en-US/docs/Web/API/TextEncoder
+/**
+ * minimal TextDecoder
+ * No support for encodeInto.
+ *
+ * ref https://developer.mozilla.org/en-US/docs/Web/API/TextEncoder
+ */
 export class TextEncoder {
 	constructor() {
 
@@ -12,8 +17,11 @@ export class TextEncoder {
 		}
 		let arrayBuffer;
 		let bytes;
+		// fxArrayBuffer only allocates a chunk if length > 0
+		// else new Uint8Array(enc.encode(""))
+		// throws new "detached buffer!"
 		if (s.length === 0) {
-			arrayBuffer = undefined;
+			// arrayBuffer = undefined;
 			bytes = new Uint8Array();
 		} else {
 			arrayBuffer = utf8_encode(s);
@@ -29,7 +37,17 @@ export class TextEncoder {
 
 const UTF8Names = ["unicode-1-1-utf-8", "utf-8", "utf8"];
 
+/**
+ * minimal utf-8 TextDecoder
+ * no support for fatal, stream, etc.
+ *
+ * ref https://developer.mozilla.org/en-US/docs/Web/API/TextEncoder
+ */
 export class TextDecoder {
+	/**
+	 * @param {string=} utfLabel optional name for UTF-8
+	 * @param {*} options fatal is not supported
+	 */
 	constructor(utfLabel, options) {
 		if (utfLabel & !UTF8Names.includes(utfLabel)) {
 			throw new TypeError(utfLabel);
@@ -38,6 +56,10 @@ export class TextDecoder {
 			throw new TypeError('fatal not supported');
 		}
 	}
+	/**
+	 * @param {Uint8Array} bytes
+	 * @param {*} options stream is not supported
+	 */
 	decode(bytes, options) {
 		if (options && options.stream) {
 			throw new TypeError('stream is unsupported');
