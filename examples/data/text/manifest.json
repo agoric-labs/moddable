@@ -5,8 +5,6 @@
 	"modules": {
 		"*": [
 			"./main",
-			"$(MODDABLE)/modules/data/hex/hex",
-			"$(MODDABLE)/modules/data/hex/modHex",
 			"$(MODDABLE)/modules/data/text/text",
 		],
 	},

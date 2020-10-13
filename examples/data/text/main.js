@@ -1,4 +1,3 @@
-import Hex from "hex";
 import { TextEncoder, TextDecoder } from "text";
 
 const testCases = [
