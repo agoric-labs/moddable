@@ -14,7 +14,7 @@ export class TextEncoder {
 		let bytes;
 		if (s.length === 0) {
 			arrayBuffer = undefined;
-			bytes = Uint8Array.from([]);
+			bytes = new Uint8Array();
 		} else {
 			arrayBuffer = utf8_encode(s);
 			bytes = new Uint8Array(arrayBuffer);
@@ -27,9 +27,11 @@ export class TextEncoder {
 	}
 }
 
+const UTF8Names = ["unicode-1-1-utf-8", "utf-8", "utf8"];
+
 export class TextDecoder {
 	constructor(utfLabel, options) {
-		if (utfLabel & !["unicode-1-1-utf-8", "utf-8", "utf8"].includes(utfLabel)) {
+		if (utfLabel & !UTF8Names.includes(utfLabel)) {
 			throw new TypeError(utfLabel);
 		}
 		if (options && options.fatal) {
