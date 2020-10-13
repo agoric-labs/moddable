@@ -64,14 +64,21 @@ function main() {
 
   for (const { label, bytes, text } of testCases) {
     const actual = enc.encode(text);
-    if (cmp(actual, bytes)) {
-      traceln(`PASS: ${label}`);
-    } else {
+    const actualString = dec.decode(Uint8Array.from(bytes));
+    if (!cmp(actual, bytes)) {
       traceln(
         `FAIL: ${label}: expected ${JSON.stringify(bytes)} actual ${
           actual.length
         } ${JSON.stringify(Array.from(actual))}`
       );
+    } else if (actualString !== text) {
+      traceln(
+        `FAIL: ${label}: expected ${JSON.stringify(
+          text
+        )} actual ${JSON.stringify(Array.from(actualString))}`
+      );
+    } else {
+      traceln(`PASS: ${label}`);
     }
   }
 }
