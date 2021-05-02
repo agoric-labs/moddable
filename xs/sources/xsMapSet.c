@@ -1030,6 +1030,9 @@ txBoolean fxDeleteEntry(txMachine* the, txSlot* table, txSlot* list, txSlot* key
 						address = &slot->next;
 					}
 				}
+#ifdef __XSNAP__
+                                the->mapSetRemoveCount += 1;
+#endif
 				return 1;
 			}
 		}
@@ -1108,6 +1111,9 @@ void fxSetEntry(txMachine* the, txSlot* table, txSlot* list, txSlot* key, txSlot
 		}
 		address = &entry->next;
 	}
+#ifdef __XSNAP__
+        the->mapSetAddCount += 1;
+#endif
 	first = fxNewSlot(the);
 	first->kind = key->kind;
 	first->value = key->value;
