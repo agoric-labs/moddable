@@ -1097,6 +1097,7 @@ void fxSetEntry(txMachine* the, txSlot* table, txSlot* list, txSlot* key, txSlot
 	txSlot* first;
 	txSlot* last;
 	txSlot* slot;
+        txUnsigned qty = 0;
 	while ((entry = *address)) {
 		if (entry->value.entry.sum == sum) {
 			first = entry->value.entry.slot;
@@ -1109,10 +1110,14 @@ void fxSetEntry(txMachine* the, txSlot* table, txSlot* list, txSlot* key, txSlot
 				return;
 			}
 		}
+                qty += 1;
 		address = &entry->next;
 	}
 #ifdef __XSNAP__
         the->mapSetAddCount += 1;
+        if (qty > the->maxBucketSize) {
+          the->maxBucketSize = qty;
+        }
 #endif
 	first = fxNewSlot(the);
 	first->kind = key->kind;
