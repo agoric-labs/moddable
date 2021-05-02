@@ -1034,6 +1034,9 @@ txBoolean fxDeleteEntry(txMachine* the, txSlot* table, txSlot* list, txSlot* key
 						address = &slot->next;
 					}
 				}
+#ifdef __XSNAP__
+				the->mapSetRemoveCount += 1;
+#endif
 				return 1;
 			}
 		}
@@ -1098,6 +1101,9 @@ void fxSetEntry(txMachine* the, txSlot* table, txSlot* list, txSlot* key, txSlot
 	txSlot* first;
 	txSlot* last;
 	txSlot* slot;
+#ifdef __XSNAP__
+	txUnsigned qty = 0;
+#endif
 	while (entry) {
 		if (entry->value.entry.sum == sum) {
 			first = entry->value.entry.slot;
@@ -1110,8 +1116,17 @@ void fxSetEntry(txMachine* the, txSlot* table, txSlot* list, txSlot* key, txSlot
 				return;
 			}
 		}
+#ifdef __XSNAP__
+		qty += 1;
+#endif
 		entry = entry->next;
 	}
+#ifdef __XSNAP__
+	the->mapSetAddCount += 1;
+	if (qty > the->maxBucketSize) {
+		the->maxBucketSize = qty;
+	}
+#endif
 	first = fxNewSlot(the);
 	first->kind = key->kind;
 	first->value = key->value;
