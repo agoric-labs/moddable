@@ -331,7 +331,7 @@ void fxCollect(txMachine* the, txBoolean theFlag)
 		(long)(the->peakHeapCount * sizeof(txSlot)),
 		the->collectFlag & XS_TRASHING_FLAG);
 #endif
-#ifdef mxInstrument
+#if defined(mxInstrument) || defined(__XSNAP__)
 	the->garbageCollectionCount++;
 #endif
 #ifdef mxProfile
@@ -428,7 +428,7 @@ void fxGrowChunks(txMachine* the, txSize theSize)
 	if (!(the->collectFlag & XS_SKIPPED_COLLECT_FLAG)) {
 		txSize modulo = theSize % the->minimumChunksSize;
 		if (modulo)
-			fxAddChunkSizes(the, theSize, the->minimumChunksSize - modulo);
+			theSize = fxAddChunkSizes(the, theSize, the->minimumChunksSize - modulo);
 	}
 	theSize = fxAddChunkSizes(the, theSize, sizeof(txBlock));
 	aData = fxAllocateChunks(the, theSize);
