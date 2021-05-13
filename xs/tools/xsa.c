@@ -37,10 +37,10 @@ int main(int argc, char* argv[])
 			file = fopen(argv[1], "r");
 			mxThrowElse(file);
 			fseek(file, 0, SEEK_END);
-			size = ftell(file);
+			size = (txSize)ftell(file);
 			fseek(file, 0, SEEK_SET);
 			buffer = fxNewLinkerChunk(linker, size + 1);
-			size = fread(buffer, 1, size, file);
+			size = (txSize)fread(buffer, 1, size, file);
 			buffer[size] = 0;
 			fclose(file);
 			string = buffer;
@@ -135,6 +135,7 @@ int main(int argc, char* argv[])
 		}
 
 		linker->symbolTable = fxNewLinkerChunkClear(linker, linker->symbolModulo * sizeof(txLinkerSymbol*));
+		fxNewLinkerSymbol(linker, gxIDStrings[0], 0);
 
 		resource = linker->firstResource;
 		while (resource) {
