@@ -262,8 +262,7 @@ void fx_Map(txMachine* the)
 	iterable = mxArgv(0);
 	if ((iterable->kind == XS_UNDEFINED_KIND) || (iterable->kind == XS_NULL_KIND))
 		return;
-	mxPushSlot(mxResult);
-	fxGetID(the, mxID(_set));	
+	mxGetID(mxResult, mxID(_set));
 	function = the->stack;	
 	if (!fxIsCallable(the, function))	
 		mxTypeError("set is no function");
@@ -554,8 +553,7 @@ void fx_Set(txMachine* the)
 	iterable = mxArgv(0);
 	if ((iterable->kind == XS_UNDEFINED_KIND) || (iterable->kind == XS_NULL_KIND))
 		return;
-	mxPushSlot(mxResult);
-	fxGetID(the, mxID(_add));	
+	mxGetID(mxResult, mxID(_add));
 	function = the->stack;	
 	if (!fxIsCallable(the, function))	
 		mxTypeError("add is no function");
@@ -779,8 +777,7 @@ void fx_WeakMap(txMachine* the)
 	iterable = mxArgv(0);
 	if ((iterable->kind == XS_UNDEFINED_KIND) || (iterable->kind == XS_NULL_KIND))
 		return;
-	mxPushSlot(mxResult);
-	fxGetID(the, mxID(_set));	
+	mxGetID(mxResult, mxID(_set));
 	function = the->stack;	
 	if (!fxIsCallable(the, function))	
 		mxTypeError("set is no function");
@@ -912,8 +909,7 @@ void fx_WeakSet(txMachine* the)
 	iterable = mxArgv(0);
 	if ((iterable->kind == XS_UNDEFINED_KIND) || (iterable->kind == XS_NULL_KIND))
 		return;
-	mxPushSlot(mxResult);
-	fxGetID(the, mxID(_add));	
+	mxGetID(mxResult, mxID(_add));
 	function = the->stack;	
 	if (!fxIsCallable(the, function))	
 		mxTypeError("add is no function");
@@ -1097,14 +1093,14 @@ void fxSetEntry(txMachine* the, txSlot* table, txSlot* list, txSlot* key, txSlot
 	txU4 sum = fxSumEntry(the, key);
 	txU4 modulo = sum % table->value.table.length;
 	txSlot** address = &(table->value.table.address[modulo]);
-	txSlot* entry;
+	txSlot* entry = *address;
 	txSlot* first;
 	txSlot* last;
 	txSlot* slot;
 #ifdef __XSNAP__
         txUnsigned qty = 0;
 #endif
-	while ((entry = *address)) {
+	while (entry) {
 		if (entry->value.entry.sum == sum) {
 			first = entry->value.entry.slot;
 			if (fxTestEntry(the, first, key)) {
@@ -1119,7 +1115,7 @@ void fxSetEntry(txMachine* the, txSlot* table, txSlot* list, txSlot* key, txSlot
 #ifdef __XSNAP__
                 qty += 1;
 #endif
-		address = &entry->next;
+		entry = entry->next;
 	}
 #ifdef __XSNAP__
         the->mapSetAddCount += 1;
@@ -1137,10 +1133,12 @@ void fxSetEntry(txMachine* the, txSlot* table, txSlot* list, txSlot* key, txSlot
 		last->value = pair->value;
 		mxPushClosure(last);
 	}
-	*address = entry = fxNewSlot(the);
+	entry = fxNewSlot(the);
+	entry->next = *address;
 	entry->kind = XS_ENTRY_KIND;
 	entry->value.entry.slot = first;
 	entry->value.entry.sum = sum;
+	*address = entry;
 	if (list) {
 		if (list->value.list.last)
 			list->value.list.last->next = first;
