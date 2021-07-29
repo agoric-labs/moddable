@@ -67,7 +67,7 @@ void xs_spi_constructor(xsMachine *the)
 	xsmcVars(1);
 
 	xsmcGet(xsVar(0), xsArg(0), xsID_clock);
-	clock = xsmcToInteger(xsVar(0));
+	clock = builtinGetPin(the, &xsVar(0));
 	if (!builtinIsPinFree(clock))
 		xsRangeError("in use");
 
@@ -76,21 +76,21 @@ void xs_spi_constructor(xsMachine *the)
 
 	if (xsmcHas(xsArg(0), xsID_out)) {
 		xsmcGet(xsVar(0), xsArg(0), xsID_out);
-		mosi = xsmcToInteger(xsVar(0));
+		mosi = builtinGetPin(the, &xsVar(0));
 		if (!builtinIsPinFree(mosi))
 			xsRangeError("in use");
 	}
 
 	if (xsmcHas(xsArg(0), xsID_in)) {
 		xsmcGet(xsVar(0), xsArg(0), xsID_in);
-		miso = xsmcToInteger(xsVar(0));
+		miso = builtinGetPin(the, &xsVar(0));
 		if (!builtinIsPinFree(miso))
 			xsRangeError("in use");
 	}
 
 	if (xsmcHas(xsArg(0), xsID_select)) {
 		xsmcGet(xsVar(0), xsArg(0), xsID_select);
-		select = xsmcToInteger(xsVar(0));
+		select = builtinGetPin(the, &xsVar(0));
 		if (!builtinIsPinFree(select))
 			xsRangeError("in use");
 	}
@@ -116,7 +116,11 @@ void xs_spi_constructor(xsMachine *the)
 #if ESP32
 	xsmcGet(xsVar(0), xsArg(0), xsID_port);
 	tmp = xsmcToInteger(xsVar(0));
-	if ((SPI_HOST != tmp) && (HSPI_HOST != tmp) && (VSPI_HOST != tmp))
+	if ((SPI_HOST != tmp) && (HSPI_HOST != tmp)
+#if ESP32 != 2
+		 && (VSPI_HOST != tmp)
+#endif
+		)
 		xsRangeError("invalid port");
 	spiPort = (uint8_t)tmp;
 #else
