@@ -352,7 +352,7 @@ void fxCollect(txMachine* the, txBoolean theFlag)
 		(long)(the->peakHeapCount * sizeof(txSlot)),
 		the->collectFlag & XS_TRASHING_FLAG);
 #endif
-#if defined(mxInstrument) || defined(__XSNAP__)
+#if defined(mxInstrument) || defined(AG_METER)
 	the->garbageCollectionCount++;
 #endif
 #ifdef mxProfile

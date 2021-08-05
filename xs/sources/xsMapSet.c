@@ -721,7 +721,7 @@ txBoolean fxDeleteEntry(txMachine* the, txSlot* table, txSlot* list, txSlot* key
 					last->flag = XS_DONT_ENUM_FLAG;
 					last->kind = XS_UNDEFINED_KIND;
 				}
-#ifdef __XSNAP__
+#ifdef AG_METER
 				the->mapSetRemoveCount += 1;
 #endif
 				list->next->value.integer--;
@@ -836,7 +836,7 @@ void fxSetEntry(txMachine* the, txSlot* table, txSlot* list, txSlot* key, txSlot
 	txSlot* entry = *address;
 	txSlot* first;
 	txSlot* last;
-#ifdef __XSNAP__
+#ifdef AG_METER
 	txUnsigned qty = 0;
 #endif
 	while (entry) {
@@ -851,12 +851,12 @@ void fxSetEntry(txMachine* the, txSlot* table, txSlot* list, txSlot* key, txSlot
 				return;
 			}
 		}
-#ifdef __XSNAP__
+#ifdef AG_METER
 		qty += 1;
 #endif
 		entry = entry->next;
 	}
-#ifdef __XSNAP__
+#ifdef AG_METER
 	the->mapSetAddCount += 1;
 	if (qty > the->maxBucketSize) {
 		the->maxBucketSize = qty;
