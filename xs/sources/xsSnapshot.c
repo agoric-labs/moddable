@@ -18,6 +18,7 @@
  *
  */
 
+#define _GNU_SOURCE
 #include "xsSnapshot.h"
 
 static void fxLinkChunks(txMachine* the);
