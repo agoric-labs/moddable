@@ -681,7 +681,7 @@ txCallback fxProjectCallback(txMachine* the, txSnapshot* snapshot, txCallback ca
 			callbackItem++;
 		}
 		{
-#if mxMacOSX || mxLinux
+#if mxMacOSX
 			Dl_info info;
 		    if (dladdr(callback, &info)) {
 				mxAssert(0, "# snapshot: unknown callback: %s!\n", info.dli_sname);
