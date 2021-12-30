@@ -18,7 +18,6 @@
  *
  */
 
-#define _GNU_SOURCE
 #include "xsSnapshot.h"
 #if mxMacOSX || mxLinux
 #include <dlfcn.h>
