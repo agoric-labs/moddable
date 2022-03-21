@@ -57,6 +57,7 @@ void xs_textdecoder(xsMachine *the)
 	xsmcGet(xsResult, xsTarget, xsID("prototype"));
 	xsResult = xsNewHostInstance(xsResult);
 	xsThis = xsResult;
+	xsmcSetHostDestructor(xsThis, NULL);
 #endif
 
 	decoder.ignoreBOM = false;
@@ -108,7 +109,11 @@ void xs_textdecoder_decode(xsMachine *the)
 	else
 		src = srcEnd = NULL;
 
+#if mxNoFunctionLength
 	td = xsmcGetHostChunkValidate(xsThis, xs_textdecoder_destructor);
+#else
+	td = xsmcGetHostChunk(xsThis);
+#endif
 	buffer = td->buffer;
 	bufferLength = td->bufferLength;
 
@@ -216,7 +221,11 @@ void xs_textdecoder_decode(xsMachine *the)
 	else
 		src = srcEnd = NULL;
 
+#if mxNoFunctionLength
 	td = xsmcGetHostChunkValidate(xsThis, xs_textdecoder_destructor);
+#else
+	td = xsmcGetHostChunk(xsThis);
+#endif
 	buffer = td->buffer;
 	bufferLength = td->bufferLength;
 
@@ -372,13 +381,21 @@ void xs_textdecoder_get_encoding(xsMachine *the)
 
 void xs_textdecoder_get_ignoreBOM(xsMachine *the)
 {
+#if mxNoFunctionLength
 	modTextDecoder td = xsmcGetHostChunkValidate(xsThis, xs_textdecoder_destructor);
+#else
+	modTextDecoder td = xsmcGetHostChunk(xsThis);
+#endif
 	xsmcSetBoolean(xsResult, td->ignoreBOM);
 }
 
 void xs_textdecoder_get_fatal(xsMachine *the)
 {
+#if mxNoFunctionLength
 	modTextDecoder td = xsmcGetHostChunkValidate(xsThis, xs_textdecoder_destructor);
+#else
+	modTextDecoder td = xsmcGetHostChunk(xsThis);
+#endif
 	xsmcSetBoolean(xsResult, td->fatal);
 }
 
@@ -398,13 +415,10 @@ void modInstallTextDecoder(xsMachine *the)
 
 	xsVar(kScratch) = xsNewHostFunction(xs_textdecoder_decode, 1);
 	xsmcSet(xsVar(kPrototype), xsID("decode"), xsVar(kScratch));
-
 	xsVar(kScratch) = xsNewHostFunction(xs_textdecoder_get_encoding, 0);
 	xsmcDefine(xsVar(kPrototype), xsID("encoding"), xsVar(kScratch), xsIsGetter);
-
 	xsVar(kScratch) = xsNewHostFunction(xs_textdecoder_get_ignoreBOM, 0);
 	xsmcDefine(xsVar(kPrototype), xsID("ignoreBOM"), xsVar(kScratch), xsIsGetter);
-
 	xsVar(kScratch) = xsNewHostFunction(xs_textdecoder_get_fatal, 0);
 	xsmcDefine(xsVar(kPrototype), xsID("fatal"), xsVar(kScratch), xsIsGetter);
 
