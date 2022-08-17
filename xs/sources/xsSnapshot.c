@@ -2035,7 +2035,9 @@ int fxWriteSnapshot(txMachine* the, txSnapshot* snapshot)
 	mxCatch(the) {
 		
 	}
-	
+
+        if (snapshot->slots)
+          c_free(snapshot->slots);
 	projectionAddress = &(snapshot->firstProjection);
 	while ((projection = *projectionAddress)) {
 		*projectionAddress = projection->nextProjection;
