@@ -1435,6 +1435,9 @@ void* fxRenewChunk(txMachine* the, void* theData, txSize size)
 				aBlock->current += delta;
 				aChunk->temporary = aBlock->current;
 				aChunk->size = size;
+			#ifdef mxSnapshot
+				c_memset(aData + capacity, 0, delta);
+			#endif
 			#ifdef mxNever
 				gxRenewChunkCases[1]++;
 			#endif
