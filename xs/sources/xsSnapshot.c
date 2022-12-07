@@ -1257,6 +1257,7 @@ txMachine* fxReadSnapshot(txSnapshot* snapshot, txString theName, void* theConte
 	
 			fxReadAtom(the, snapshot, &atom, "BLOC");
 			mxThrowIf((*snapshot->read)(snapshot->stream, the->firstBlock->current, atom.atomSize));
+			the->currentChunksSize = atom.atomSize;
 			the->firstBlock->current += atom.atomSize;
 	
 			fxReadAtom(the, snapshot, &atom, "HEAP");

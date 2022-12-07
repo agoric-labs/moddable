@@ -567,6 +567,7 @@ void fxGrowSlots(txMachine* the, txSize theCount)
     while (theCount--) {
 		txSlot* next = aSlot + 1;
 		aSlot->next = next;
+		aSlot->flag = XS_NO_FLAG;
 		aSlot->kind = XS_UNDEFINED_KIND;
 	#if mxPoisonSlots
 		ASAN_POISON_MEMORY_REGION(&aSlot->value, sizeof(aSlot->value));
@@ -574,6 +575,7 @@ void fxGrowSlots(txMachine* the, txSize theCount)
         aSlot = next;
     }
 	aSlot->next = the->freeHeap;
+	aSlot->flag = XS_NO_FLAG;
 	aSlot->kind = XS_UNDEFINED_KIND;
 #if mxPoisonSlots
 	ASAN_POISON_MEMORY_REGION(&aSlot->value, sizeof(aSlot->value));
@@ -839,6 +841,8 @@ void fxMarkReference(txMachine* the, txSlot* theSlot)
 		fxCheckCStack(the);
 		if ((aSlot = theSlot->value.array.address)) {
 			txIndex aLength = (((txChunk*)(((txByte*)aSlot) - sizeof(txChunk)))->size) / sizeof(txSlot);
+			if (aLength > theSlot->value.array.length)
+				aLength = theSlot->value.array.length;
 			while (aLength) {
 				fxMarkReference(the, aSlot);
 				aSlot++;
