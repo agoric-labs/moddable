@@ -504,7 +504,7 @@ void* fxGrowChunks(txMachine* the, txSize size)
 	txByte* buffer;
 	txBlock* block = C_NULL;
 
-	if (!(the->collectFlag & XS_SKIPPED_COLLECT_FLAG)) {
+	if ((the->firstBlock != C_NULL) && (!(the->collectFlag & XS_SKIPPED_COLLECT_FLAG))) {
 		txSize modulo = size % the->minimumChunksSize;
 		if (modulo)
 			size = fxAddChunkSizes(the, size, the->minimumChunksSize - modulo);
@@ -526,8 +526,8 @@ void* fxGrowChunks(txMachine* the, txSize size)
 			block->limit = buffer + size;
 			block->temporary = C_NULL;
 			the->firstBlock = block;
+			size -= sizeof(txBlock);
 		}
-		size -= sizeof(txBlock);
 		the->maximumChunksSize += size;
 	#if mxReport
 		fxReport(the, "# Chunk allocation: reserved %ld used %ld peak %ld bytes\n", 
