@@ -163,7 +163,7 @@ void fxBuildModule(txMachine* the)
 {
 	txSlot* slot;
 	
-	fxNewHostFunction(the, mxCallback(fxModuleGetter), 0, XS_NO_ID, XS_NO_ID);
+	fxNewHostFunction(the, mxCallback(fxModuleGetter), 0, XS_NO_ID);
 	mxPushUndefined();
 	the->stack->flag = XS_DONT_DELETE_FLAG;
 	the->stack->kind = XS_ACCESSOR_KIND;
@@ -304,13 +304,13 @@ void fxExecuteModules(txMachine* the, txSlot* queue)
 							txSlot* resolveExecuteFunction;
 							txSlot* rejectExecuteFunction;
 							
-							function = fxNewHostFunction(the, fxExecuteModulesFulfilled, 1, XS_NO_ID, mxExecuteModulesFulfilledProfileID);
+							function = fxNewHostFunction(the, fxExecuteModulesFulfilled, 1, XS_NO_ID);
 							home = mxFunctionInstanceHome(function);
 							home->value.home.object = queue;
 							home->value.home.module = module->value.reference;
 							resolveExecuteFunction = the->stack;
 	
-							function = fxNewHostFunction(the, fxExecuteModulesRejected, 1, XS_NO_ID, mxExecuteModulesRejectedProfileID);
+							function = fxNewHostFunction(the, fxExecuteModulesRejected, 1, XS_NO_ID);
 							home = mxFunctionInstanceHome(function);
 							home->value.home.object = queue;
 							home->value.home.module = module->value.reference;
@@ -438,7 +438,7 @@ void fxExecuteVirtualModuleSource(txMachine* the)
 	/* ARGUMENTS */
 	mxPushReference(closures);
 	if (internal->flag & XS_IMPORT_FLAG) {
-		function = fxNewHostFunction(the, fxExecuteVirtualModuleSourceImport, 1, XS_NO_ID, mxExecuteVirtualModuleSourceImportProfileID);
+		function = fxNewHostFunction(the, fxExecuteVirtualModuleSourceImport, 1, XS_NO_ID);
 		mxFunctionInstanceHome(function)->value.home.module = module;
 	}
 	else
@@ -932,13 +932,13 @@ void fxLoadModules(txMachine* the, txSlot* queue)
 						if (!mxIsPromise(promise))
 							mxTypeError("loadHook returned no promise");
 
-						function = fxNewHostFunction(the, fxLoadModulesFulfilled, 1, XS_NO_ID, mxLoadModulesFulfilledProfileID);
+						function = fxNewHostFunction(the, fxLoadModulesFulfilled, 1, XS_NO_ID);
 						home = mxFunctionInstanceHome(function);
 						home->value.home.object = queue;
 						home->value.home.module = module->value.reference;
 						resolveLoadFunction = the->stack;
 
-						function = fxNewHostFunction(the, fxLoadModulesRejected, 1, XS_NO_ID, mxLoadModulesRejectedProfileID);
+						function = fxNewHostFunction(the, fxLoadModulesRejected, 1, XS_NO_ID);
 						home = mxFunctionInstanceHome(function);
 						home->value.home.object = queue;
 						home->value.home.module = module->value.reference;
@@ -1125,7 +1125,7 @@ void fxLoadVirtualModuleSource(txMachine* the, txSlot* record, txSlot* instance)
 		if (!fxIsCallable(the, slot))
 			mxTypeError("execute is no function");
 	}
-	function = fxNewHostFunction(the, fxExecuteVirtualModuleSource, 0, XS_NO_ID, mxExecuteVirtualModuleSourceProfileID);
+	function = fxNewHostFunction(the, fxExecuteVirtualModuleSource, 0, XS_NO_ID);
 	property = mxFunctionInstanceHome(function);
 	property->value.home.object = fxToInstance(the, record);
 	property->value.home.module = instance;

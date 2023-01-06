@@ -534,25 +534,25 @@ txSlot* fxNewAsyncGeneratorInstance(txMachine* the)
 	property->value.list.first = C_NULL;
 	property->value.list.last = C_NULL;
 	
-	function = fxNewHostFunction(the, fxAsyncGeneratorResolveAwait, 1, XS_NO_ID, mxAsyncGeneratorResolveAwaitProfileID);
+	function = fxNewHostFunction(the, fxAsyncGeneratorResolveAwait, 1, XS_NO_ID);
 	home = mxFunctionInstanceHome(function);
 	home->value.home.object = instance;
     property = fxNextSlotProperty(the, property, the->stack, XS_NO_ID, XS_INTERNAL_FLAG);
 	mxPop();
 	
-	function = fxNewHostFunction(the, fxAsyncGeneratorRejectAwait, 1, XS_NO_ID, mxAsyncGeneratorRejectAwaitProfileID);
+	function = fxNewHostFunction(the, fxAsyncGeneratorRejectAwait, 1, XS_NO_ID);
 	home = mxFunctionInstanceHome(function);
 	home->value.home.object = instance;
     property = fxNextSlotProperty(the, property, the->stack, XS_NO_ID, XS_INTERNAL_FLAG);
 	mxPop();
 	
-	function = fxNewHostFunction(the, fxAsyncGeneratorResolveYield, 1, XS_NO_ID, mxAsyncGeneratorResolveYieldProfileID);
+	function = fxNewHostFunction(the, fxAsyncGeneratorResolveYield, 1, XS_NO_ID);
 	home = mxFunctionInstanceHome(function);
 	home->value.home.object = instance;
     property = fxNextSlotProperty(the, property, the->stack, XS_NO_ID, XS_INTERNAL_FLAG);
 	mxPop();
 	
-	function = fxNewHostFunction(the, fxAsyncGeneratorRejectYield, 1, XS_NO_ID, mxAsyncGeneratorRejectYieldProfileID);
+	function = fxNewHostFunction(the, fxAsyncGeneratorRejectYield, 1, XS_NO_ID);
 	home = mxFunctionInstanceHome(function);
 	home->value.home.object = instance;
     property = fxNextSlotProperty(the, property, the->stack, XS_NO_ID, XS_INTERNAL_FLAG);
@@ -742,7 +742,7 @@ txSlot* fxNewAsyncFromSyncIteratorInstance(txMachine* the)
 	slot = fxNextSlotProperty(the, slot, the->stack, XS_NO_ID, XS_INTERNAL_FLAG);
 	mxPop();
 	
-	function = fxNewHostFunction(the, fxAsyncFromSyncIteratorDone, 1, XS_NO_ID, mxAsyncFromSyncIteratorDoneProfileID);
+	function = fxNewHostFunction(the, fxAsyncFromSyncIteratorDone, 1, XS_NO_ID);
 	home = mxFunctionInstanceHome(function);
 	home->value.home.object = instance;
     slot = fxNextSlotProperty(the, slot, the->stack, XS_NO_ID, XS_INTERNAL_FLAG);

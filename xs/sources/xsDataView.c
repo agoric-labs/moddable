@@ -251,10 +251,10 @@ void fxBuildDataView(txMachine* the)
 	mxPush(mxObjectPrototype);
 	instance = fxNewObjectInstance(the);
 	
-	fxNewHostFunction(the, mxCallback(fxTypedArrayGetter), 0, XS_NO_ID, XS_NO_ID);
+	fxNewHostFunction(the, mxCallback(fxTypedArrayGetter), 0, XS_NO_ID);
 	property = mxFunctionInstanceHome(the->stack->value.reference);
 	property->value.home.object = instance;
-	fxNewHostFunction(the, mxCallback(fxTypedArraySetter), 1, XS_NO_ID, XS_NO_ID);
+	fxNewHostFunction(the, mxCallback(fxTypedArraySetter), 1, XS_NO_ID);
 	property = mxFunctionInstanceHome(the->stack->value.reference);
 	property->value.home.object = instance;
 	mxPushUndefined();

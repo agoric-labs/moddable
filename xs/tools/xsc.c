@@ -57,11 +57,6 @@ static void fxWriteIDs(txScript* script, FILE* file);
 
 #ifndef XSTOOLS
 
-txID fxGenerateProfileID(void* console)
-{
-	return XS_NO_ID;
-}
-
 void fxGenerateTag(void* console, txString buffer, txInteger bufferSize, txString path)
 {
 	static txInteger gxTag = 0;

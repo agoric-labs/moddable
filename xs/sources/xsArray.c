@@ -91,10 +91,10 @@ void fxBuildArray(txMachine* the)
 	mxPush(mxObjectPrototype);
 	instance = fxNewArrayInstance(the);
 
-	fxNewHostFunction(the, mxCallback(fxArrayLengthGetter), 0, mxID(_length), XS_NO_ID);
+	fxNewHostFunction(the, mxCallback(fxArrayLengthGetter), 0, mxID(_length));
 	property = mxFunctionInstanceHome(the->stack->value.reference);
 	property->value.home.object = instance;
-	fxNewHostFunction(the, mxCallback(fxArrayLengthSetter), 1, mxID(_length), XS_NO_ID);
+	fxNewHostFunction(the, mxCallback(fxArrayLengthSetter), 1, mxID(_length));
 	property = mxFunctionInstanceHome(the->stack->value.reference);
 	property->value.home.object = instance;
 	mxPushUndefined();

@@ -272,14 +272,7 @@ void fxMapCode(txLinker* linker, txLinkerScript* script, txID* theIDs)
 		gxCodeUsages[code]++;	
 		offset = (txS1)sizes[code];
 		if (0 < offset) {
-			if (linker->profileID && (XS_CODE_PROFILE == code)) {
-				p++;
-				id = linker->profileID;
-				linker->profileID++;
-				mxEncodeID(p, id);
-			}
-			else
-				p += offset;
+			p += offset;
 		}
 		else if (0 == offset) {
 			p++;

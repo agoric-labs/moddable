@@ -312,8 +312,6 @@ int main(int argc, char* argv[])
 			fxWriteArchive(linker, path, &file);
 		}
 		else {
-			linker->profileID = mxBaseProfileID;
-		
 			c_strcpy(path, base);
 			c_strcat(path, name);
 			c_strcat(path, ".xsi");
@@ -335,13 +333,13 @@ int main(int argc, char* argv[])
 			}
 			fxBufferSymbols(linker);
 			fxWriteSymbols(linker, path, &file);
-			
+	
 			linker->base = url;
 			linker->baseLength = mxStringLength(url);
-
+	
 			creation->nameModulo = linker->creation.nameModulo;
 			creation->symbolModulo = linker->creation.symbolModulo;
-			the = fxCreateMachine(creation, "xsl", linker, linker->profileID);
+			the = xsCreateMachine(creation, "xsl", linker);
 			mxThrowElse(the);
 			fxNewLinkerCallback(the, fx_Function_prototype_bound, "fx_Function_prototype_bound");
 				
@@ -410,7 +408,8 @@ int main(int argc, char* argv[])
 					property = mxFunctionInstanceCode(the->stack->value.reference);
 					property->value.callback.address = callback;
 					property = mxFunctionInstanceHome(the->stack->value.reference);
-					property->ID = fxGenerateProfileID(the);
+					property->ID = the->profileID;
+					the->profileID++;
 					fxNewLinkerBuilder(linker, callback, 7, mxID(_Date));
 		
 					property = mxBehaviorGetProperty(the, the->stack->value.reference, mxID(_now), 0, XS_OWN);
