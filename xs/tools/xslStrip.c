@@ -185,8 +185,6 @@ void fxStripCallbacks(txLinker* linker, txMachine* the)
 			else if (!c_strcmp(name, "ModuleSource")) {
 				fxStripCallback(linker, fx_ModuleSource);
 				fxStripCallback(linker, fx_ModuleSource_prototype_get_bindings);
-				fxStripCallback(linker, fx_ModuleSource_prototype_get_needsImport);
-				fxStripCallback(linker, fx_ModuleSource_prototype_get_needsImportMeta);
 			}
 			else if (!c_strcmp(name, "Promise")) {
 				fxStripCallback(linker, fx_AsyncFromSyncIterator_prototype_next);
