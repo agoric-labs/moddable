@@ -1792,13 +1792,12 @@ mxExport void fx_Compartment_prototype_evaluate(txMachine* the);
 mxExport void fx_Compartment_prototype_import(txMachine* the);
 mxExport void fx_Compartment_prototype_importNow(txMachine* the);
 
-mxExport void fx_ModuleSource(txMachine* the);
-mxExport void fx_ModuleSource_prototype_get_bindings(txMachine* the);
-mxExport void fx_ModuleSource_prototype_get_needsImport(txMachine* the);
-mxExport void fx_ModuleSource_prototype_get_needsImportMeta(txMachine* the);
-
-mxExport void fxExecuteVirtualModuleSource(txMachine* the);
-mxExport void fxExecuteVirtualModuleSourceImport(txMachine* the);
+mxExport void fx_StaticModuleRecord(txMachine* the);
+mxExport void fx_StaticModuleRecord_import(txMachine* the);
+mxExport void fx_StaticModuleRecord_initialize(txMachine* the);
+mxExport void fx_StaticModuleRecord_prototype_get_bindings(txMachine* the);
+mxExport void fx_StaticModuleRecord_prototype_get_needsImport(txMachine* the);
+mxExport void fx_StaticModuleRecord_prototype_get_needsImportMeta(txMachine* the);
 
 /* xsLockdown.c */
 #ifdef mxLockdown
@@ -2458,7 +2457,7 @@ enum {
 	mxSharedArrayBufferPrototypeStackIndex,
 	mxBigIntPrototypeStackIndex,
 	mxCompartmentPrototypeStackIndex,
-	mxModuleSourcePrototypeStackIndex,
+	mxStaticModuleRecordPrototypeStackIndex,
 	mxWeakRefPrototypeStackIndex,
 	mxFinalizationRegistryPrototypeStackIndex,
 
@@ -2569,7 +2568,7 @@ enum {
 #define mxRegExpConstructor the->stackPrototypes[-1 - _RegExp]
 #define mxSetConstructor the->stackPrototypes[-1 - _Set]
 #define mxSharedArrayBufferConstructor the->stackPrototypes[-1 - _SharedArrayBuffer]
-#define mxModuleSourceConstructor the->stackPrototypes[-1 - _ModuleSource]
+#define mxStaticModuleRecordConstructor the->stackPrototypes[-1 - _StaticModuleRecord]
 #define mxStringConstructor the->stackPrototypes[-1 - _String]
 #define mxSymbolConstructor the->stackPrototypes[-1 - _Symbol]
 #define mxSyntaxErrorConstructor the->stackPrototypes[-1 - _SyntaxError]
@@ -2630,7 +2629,7 @@ enum {
 #define mxSharedArrayBufferPrototype the->stackPrototypes[-1 - mxSharedArrayBufferPrototypeStackIndex]
 #define mxBigIntPrototype the->stackPrototypes[-1 - mxBigIntPrototypeStackIndex]
 #define mxCompartmentPrototype the->stackPrototypes[-1 - mxCompartmentPrototypeStackIndex]
-#define mxModuleSourcePrototype the->stackPrototypes[-1 - mxModuleSourcePrototypeStackIndex]
+#define mxStaticModuleRecordPrototype the->stackPrototypes[-1 - mxStaticModuleRecordPrototypeStackIndex]
 #define mxWeakRefPrototype the->stackPrototypes[-1 - mxWeakRefPrototypeStackIndex]
 #define mxFinalizationRegistryPrototype the->stackPrototypes[-1 - mxFinalizationRegistryPrototypeStackIndex]
 
