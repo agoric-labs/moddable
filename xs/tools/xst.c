@@ -1922,8 +1922,8 @@ void fxRunLoop(txMachine* the)
 	txJob* job;
 	txJob** address;
 	
-	fxEndJob(the);
 	for (;;) {
+		fxEndJob(the);
 		while (the->promiseJobs) {
 			while (the->promiseJobs) {
 				the->promiseJobs = 0;
