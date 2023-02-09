@@ -1820,7 +1820,7 @@ void fxShareMachine(txMachine* the)
 
 void fxCollectGarbage(txMachine* the)
 {
-	fxCollect(the, 1);
+	fxCollect(the, XS_COMPACT_FLAG);
 }
 
 void fxEnableGarbageCollection(txMachine* the, txBoolean enableIt)
