@@ -63,7 +63,7 @@ class MQTTClient {
 
 	constructor(options) {
 		this.#options = {
-			host: options.host ?? options.address,
+			host: options.host,
 			port: options.port,
 			id: options.id ?? "",
 			clean: options.clean ?? true,
@@ -95,9 +95,9 @@ class MQTTClient {
 						address,
 						host,
 						port: this.#options.port ?? 1883,
-						onReadable: this.#onReadable.bind(this),
-						onWritable: this.#onWritable.bind(this),
-						onError: this.#onError.bind(this)
+						onReadable: count => this.#onReadable(count),
+						onWritable: count => this.#onWritable(count),
+						onError: error => this.#onError(error)
 					});
 					
 					this.#options.connecting = Timer.set(() => {
@@ -313,14 +313,17 @@ class MQTTClient {
 				// remaining length
 				case 1:
 					byte = socket.read();
-					parse.state = byte & 0x80 ? 2 : (parse.operation << 4);
 					parse.length = byte & 0x7F;
-
-					if (0 === parse.length) {		// no payload - handle immediately (PINGREQ, PINGRESP, DISCONNECT)
-						if (this.#parsed(parse))
-							return;
-						parse = {state: 0};
-					} 
+					if (byte & 0x80)
+						parse.state = 2
+					else {
+						parse.state = parse.operation << 4;
+						if (!parse.length) {		// no payload - handle immediately (PINGREQ, PINGRESP, DISCONNECT)
+							if (this.#parsed(parse))
+								return;
+							parse = {state: 0};
+						} 
+					}
 					break;
 
 				case 2:
@@ -640,7 +643,7 @@ class MQTTClient {
 			delete options.will;
 
 			if (keepalive) {
-				options.keepalive = Timer.repeat(this.#keepalive.bind(this), keepalive * 500);
+				options.keepalive = Timer.repeat(() => this.#keepalive(), keepalive * 500);
 				options.keepalive.interval = keepalive * 1000;
 				options.last = Date.now();
 			}
@@ -712,7 +715,7 @@ class MQTTClient {
 		if ((options.last + (interval + (interval >> 1))) < now)
 			return void this.#onError("time out"); // no response in too long
 
-		for (let i = 0, queue = this.#queue, length = queue.length; i < length; i++) {
+		for (let i = 0, queue = this.#options.pending, length = queue.length; i < length; i++) {
 			if (queue[i].keepalive && (MQTTClient.PINGREQ === queue[i].operation))
 				return void this.#onError("time out"); // unsent keepalive ping, exit
 		}

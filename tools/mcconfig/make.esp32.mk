@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2016-2022  Moddable Tech, Inc.
+# Copyright (c) 2016-2023  Moddable Tech, Inc.
 #
 #   This file is part of the Moddable SDK Tools.
 # 
@@ -117,6 +117,7 @@ INC_DIRS = \
  	$(IDF_PATH)/components/esp_eth/include \
  	$(IDF_PATH)/components/esp_hw_support/include \
  	$(IDF_PATH)/components/esp_hw_support/include/soc \
+	$(IDF_PATH)/components/esp_lcd/include \
  	$(IDF_PATH)/components/esp_netif/include \
  	$(IDF_PATH)/components/esp_pm/include \
  	$(IDF_PATH)/components/esp_ringbuf/include \
@@ -267,7 +268,6 @@ C_DEFINES = \
 	-D__ets__ \
 	-U__STRICT_ANSI__ \
 	-DESP32=$(ESP32_TARGET) \
-	$(NET_CONFIG_FLAGS) \
 	-DmxUseDefaultSharedChunks=1 \
 	-DmxRun=1 \
 	-DkCommodettoBitmapFormat=$(DISPLAY) \
@@ -310,7 +310,8 @@ endif
 
 C_FLAGS ?= $(C_COMMON_FLAGS) \
 	-Wno-implicit-function-declaration \
-	-std=gnu99
+	-std=gnu99 \
+	$(C_FLAGS_SUBPLATFORM)
 
 CPP_FLAGS ?= $(C_COMMON_FLAGS)
 
@@ -331,9 +332,7 @@ MEM_USAGE = \
 
 VPATH += $(SDK_DIRS) $(XS_DIRS)
 
-.PHONY: all partitionsFileCheck bootloaderCheck
-
-PARTITIONS_FILE ?= $(PROJ_DIR_TEMPLATE)/partitions.csv
+.PHONY: all bootloaderCheck
 
 PROJ_DIR_TEMPLATE = $(BUILD_DIR)/devices/esp32/xsProj-$(ESP32_SUBCLASS)
 PROJ_DIR_FILES = \
@@ -365,11 +364,8 @@ RELEASE_LAUNCH_CMD = idf.py $(PORT_SET) $(IDF_PY_LOG_FLAG) monitor
 PARTITIONS_BIN = partition-table.bin
 PARTITIONS_PATH = $(BLD_DIR)/partition_table/$(PARTITIONS_BIN)
 
-KILL_XSBUG = 
-
 ifeq ($(DEBUG),1)
 	ifeq ($(HOST_OS),Darwin)
-		KILL_SERIAL_2_XSBUG = $(shell pkill serial2xsbug)
 		DO_XSBUG = open -a $(BUILD_DIR)/bin/mac/release/xsbug.app -g
 		ifeq ($(USE_USB),1)
 			DO_LAUNCH = bash -c "serial2xsbug $(USB_VENDOR_ID):$(USB_PRODUCT_ID) $(DEBUGGER_SPEED) 8N1 -elf $(PROJ_DIR)/build/xs_esp32.elf -bin $(GXX_PREFIX)-elf-gdb"
@@ -385,12 +381,11 @@ ifeq ($(DEBUG),1)
 
 	### Linux
 	else
-		KILL_SERIAL_2_XSBUG = $(shell pkill serial2xsbug)
 		DO_XSBUG = $(shell nohup $(BUILD_DIR)/bin/lin/release/xsbug > /dev/null 2>&1 &)
 		ifeq ($(USE_USB),1)
 #			DO_LAUNCH = bash -c "serial2xsbug $(USB_VENDOR_ID):$(USB_PRODUCT_ID) $(DEBUGGER_SPEED) 8N1"
-			DO_LAUNCH = bash -c "PATH=$(PLATFORM_DIR)/config:$(PATH) ; connectToXsbugLinux $(USB_VENDOR_ID) $(USB_PRODUCT_ID) $(XSBUG_LOG)"
-			PROGRAMMING_MODE = bash -c "PATH=$(PLATFORM_DIR)/config:$(PATH) ; programmingModeLinux $(PROGRAMMING_VID) $(PROGRAMMING_PID) $(XSBUG_LOG)"
+			DO_LAUNCH = bash -c "PATH=\"$(PLATFORM_DIR)/config:$(PATH)\"; connectToXsbugLinux $(USB_VENDOR_ID) $(USB_PRODUCT_ID) $(XSBUG_LOG)"
+			PROGRAMMING_MODE = bash -c "PATH=\"$(PLATFORM_DIR)/config:$(PATH)\"; programmingModeLinux $(PROGRAMMING_VID) $(PROGRAMMING_PID) $(XSBUG_LOG)"
 		else
 			LOG_LAUNCH = bash -c \"XSBUG_PORT=$(XSBUG_PORT) XSBUG_HOST=$(XSBUG_HOST) serial2xsbug $(SERIAL2XSBUG_PORT) $(DEBUGGER_SPEED) 8N1\"
 
@@ -404,15 +399,14 @@ ifeq ($(DEBUG),1)
 	endif
 
 	ifeq ($(XSBUG_LOG),1)
-		KILL_XSBUG = $(shell pkill -f xsbug)
 		DO_XSBUG = 
 	endif
 
 else
-	KILL_SERIAL_2_XSBUG = 
 	DO_XSBUG = 
 	DO_LAUNCH = cd $(PROJ_DIR); $(RELEASE_LAUNCH_CMD)
 endif
+KILL_SERIAL_2_XSBUG = $(shell pkill serial2xsbug)
 
 SDKCONFIGPATH ?= $(PROJ_DIR)
 SDKCONFIG = $(SDKCONFIGPATH)/sdkconfig.defaults
@@ -420,7 +414,6 @@ SDKCONFIG_H = $(SDKCONFIG_H_DIR)/sdkconfig.h
 
 all: precursor
 	$(KILL_SERIAL_2_XSBUG)
-	$(KILL_XSBUG)
 	$(DO_XSBUG)
 	cd $(PROJ_DIR) ; $(BUILD_CMD) || (echo $(BUILD_ERR) && exit 1)
 	$(OBJDUMP) -t $(BLD_DIR)/xs_esp32.elf > $(BIN_DIR)/xs_$(ESP32_SUBCLASS).sym 2> /dev/null
@@ -439,12 +432,12 @@ all: precursor
 deploy: 
 	if ! test -e $(BIN_DIR)/xs_esp32.bin ; then (echo "Please build before deploy" && exit 1) fi
 	@echo "# uploading to $(ESP32_SUBCLASS)"
+	$(KILL_SERIAL_2_XSBUG)
 	-cd $(PROJ_DIR) ; $(DEPLOY_CMD) | tee $(PROJ_DIR)/flashOutput
 
 xsbug:
 	@echo "# starting xsbug"
 	$(KILL_SERIAL_2_XSBUG)
-	$(KILL_XSBUG)
 	$(DO_XSBUG)
 	PORT_USED=$$(grep 'Serial port' $(PROJ_DIR)/flashOutput | awk 'END{print($$3)}'); \
 	$(DO_LAUNCH)
@@ -463,7 +456,7 @@ DUMP_VARS:
 	echo "# IDF_RECONFIGURE_CMD is $(IDF_RECONFIGURE_CMD)"
 	echo "# SDKCONFIG_H_DIR is $(SDKCONFIG_H_DIR)"
 
-precursor: idfVersionCheck partitionsFileCheck prepareOutput $(PROJ_DIR_FILES) bootloaderCheck $(BLE) $(SDKCONFIG_H) $(LIB_DIR) $(BIN_DIR)/xs_$(ESP32_SUBCLASS).a
+precursor: idfVersionCheck prepareOutput $(PROJ_DIR_FILES) bootloaderCheck $(BLE) $(SDKCONFIG_H) $(LIB_DIR) $(BIN_DIR)/xs_$(ESP32_SUBCLASS).a
 	cp $(BIN_DIR)/xs_$(ESP32_SUBCLASS).a $(BLD_DIR)/.
 	touch $(PROJ_DIR)/main/main.c
 
@@ -500,13 +493,6 @@ $(BIN_DIR)/xs_$(ESP32_SUBCLASS).a: $(SDK_OBJ) $(XS_OBJ) $(TMP_DIR)/xsPlatform.c.
 	$(CC) $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) $(TMP_DIR)/buildinfo.c -o $(TMP_DIR)/buildinfo.c.o
 	$(AR) $(AR_FLAGS) $(BIN_DIR)/xs_$(ESP32_SUBCLASS).a $^ $(TMP_DIR)/buildinfo.c.o
 
-partitionsFileCheck:
-	if test -e $(PROJ_DIR)/partitions.csv ; then \
-		if ! cmp -s $(PROJ_DIR)/partitions.csv $(PARTITIONS_FILE) ; then \
-			touch $(PARTITIONS_FILE); \
-		fi ; \
-	fi
-
 bootloaderCheck:
 ifneq ($(BOOTLOADERPATH),)
 	if test -e $(PROJ_DIR)/components/bootloader/subproject/main/bootloader_start.c ; then \
@@ -529,13 +515,9 @@ idfVersionCheck:
 
 $(PROJ_DIR): $(PROJ_DIR_TEMPLATE)
 	cp -r $(PROJ_DIR_TEMPLATE)/* $(PROJ_DIR)/
-	cp $(PARTITIONS_FILE) $(PROJ_DIR)/partitions.csv
 
 $(PROJ_DIR)/main:
 	mkdir -p $(PROJ_DIR)/main
-
-$(PROJ_DIR)/partitions.csv: $(PARTITIONS_FILE)
-	cp $(PARTITIONS_FILE) $(PROJ_DIR)/partitions.csv
 
 $(PROJ_DIR)/main/main.c: $(PROJ_DIR)/main $(PROJ_DIR_TEMPLATE)/main/main.c
 	cp -f $(PROJ_DIR_TEMPLATE)/main/main.c $@
