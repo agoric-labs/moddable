@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2016-2022  Moddable Tech, Inc.
+# Copyright (c) 2016-2023  Moddable Tech, Inc.
 #
 #   This file is part of the Moddable SDK Tools.
 #
@@ -91,26 +91,22 @@ PORT_COMMAND = -p $(UPLOAD_PORT)
 
 PROJ_DIR = $(TMP_DIR)\xsProj-$(ESP32_SUBCLASS)
 
-KILL_XSBUG = 
-
 !IF "$(DEBUG)"=="1"
-KILL_SERIAL2XSBUG= -tasklist /nh /fi "imagename eq serial2xsbug.exe" | (find /i "serial2xsbug.exe" > nul) && taskkill /f /t /im "serial2xsbug.exe" >nul 2>&1
 START_XSBUG= tasklist /nh /fi "imagename eq xsbug.exe" | find /i "xsbug.exe" > nul || (start $(BUILD_DIR)\bin\win\release\xsbug.exe)
 BUILD_CMD = python %IDF_PATH%\tools\idf.py $(IDF_PY_LOG_FLAG) build -D mxDebug=1 -D INSTRUMENT=$(INSTRUMENT) -D TMP_DIR="$(TMP_DIR)" -D SDKCONFIG_HEADER="$(SDKCONFIG_H)" -D CMAKE_MESSAGE_LOG_LEVEL=$(CMAKE_LOG_LEVEL) -D DEBUGGER_SPEED=$(DEBUGGER_SPEED) -D ESP32_SUBCLASS=$(ESP32_SUBCLASS)
 BUILD_MSG =
 DEPLOY_CMD = python %IDF_PATH%\tools\idf.py $(IDF_PY_LOG_FLAG) $(PORT_COMMAND) -b $(UPLOAD_SPEED) flash -D mxDebug=1 -D INSTRUMENT=$(INSTRUMENT) -D TMP_DIR="$(TMP_DIR)" -D SDKCONFIG_HEADER="$(SDKCONFIG_H)" -D CMAKE_MESSAGE_LOG_LEVEL=$(CMAKE_LOG_LEVEL) -D DEBUGGER_SPEED=$(DEBUGGER_SPEED) -D ESP32_SUBCLASS=$(ESP32_SUBCLASS)
 START_SERIAL2XSBUG = echo Launching app... & echo Type Ctrl-C twice after debugging app. & set "XSBUG_PORT=$(XSBUG_PORT)" && set "XSBUG_HOST=$(XSBUG_HOST)" && $(BUILD_DIR)\bin\win\release\serial2xsbug $(PORT_TO_USE) $(DEBUGGER_SPEED) 8N1
 !ELSE
-KILL_SERIAL2XSBUG= -tasklist /nh /fi "imagename eq serial2xsbug.exe" | (find /i "serial2xsbug.exe" > nul) && taskkill /f /t /im "serial2xsbug.exe" >nul 2>&1
 START_XSBUG=
 START_SERIAL2XSBUG = echo No debugger for a release build.
 BUILD_CMD = python %IDF_PATH%\tools\idf.py $(IDF_PY_LOG_FLAG) build -D mxDebug=0 -D INSTRUMENT=$(INSTRUMENT) -D TMP_DIR="$(TMP_DIR)" -D SDKCONFIG_HEADER="$(SDKCONFIG_H)" -D CMAKE_MESSAGE_LOG_LEVEL=$(CMAKE_LOG_LEVEL) -D DEBUGGER_SPEED=$(DEBUGGER_SPEED) -D ESP32_SUBCLASS=$(ESP32_SUBCLASS)
 DEPLOY_CMD = python %IDF_PATH%\tools\idf.py $(IDF_PY_LOG_FLAG) $(PORT_COMMAND) -b $(UPLOAD_SPEED) flash -D mxDebug=0 -D INSTRUMENT=$(INSTRUMENT) -D TMP_DIR="$(TMP_DIR)" -D SDKCONFIG_HEADER="$(SDKCONFIG_H)" -D CMAKE_MESSAGE_LOG_LEVEL=$(CMAKE_LOG_LEVEL) -D DEBUGGER_SPEED=$(DEBUGGER_SPEED) -D ESP32_SUBCLASS=$(ESP32_SUBCLASS)
 
 !ENDIF
+KILL_SERIAL2XSBUG= -tasklist /nh /fi "imagename eq serial2xsbug.exe" | (find /i "serial2xsbug.exe" > nul) && taskkill /f /t /im "serial2xsbug.exe" >nul 2>&1
 
 !IF "$(XSBUG_LOG)"=="1"
-KILL_XSBUG = -tasklist /nh /fi "imagename eq xsbug.exe" | (find /i "xsbug.exe" > nul) && taskkill /f /t /im "xsbug.exe" >nul 2>&1 
 START_SERIAL2XSBUG = echo Launching app... & set "XSBUG_PORT=$(XSBUG_PORT)" && set "XSBUG_HOST=$(XSBUG_HOST)" && cd $(MODDABLE)\tools\xsbug-log && node xsbug-log start /B $(BUILD_DIR)\bin\win\release\serial2xsbug $(PORT_TO_USE) $(DEBUGGER_SPEED) 8N1 
 START_XSBUG =
 !ENDIF
@@ -314,7 +310,6 @@ C_DEFINES = \
 	-D__ets__ \
 	-U__STRICT_ANSI__ \
 	-DESP32=$(ESP32_TARGET) \
-	$(NET_CONFIG_FLAGS) \
 	-DmxUseDefaultSharedChunks=1 \
 	-DmxRun=1 \
 	-DkCommodettoBitmapFormat=$(DISPLAY) \
@@ -357,7 +352,8 @@ C_COMMON_FLAGS = $(C_COMMON_FLAGS) \
 
 C_FLAGS = $(C_COMMON_FLAGS) \
 	-Wno-implicit-function-declaration \
-	-std=gnu99 
+	-std=gnu99 \
+	$(C_FLAGS_SUBPLATFORM)
 
 CPP_FLAGS = $(C_COMMON_FLAGS)
 
@@ -368,19 +364,8 @@ C_DEFINES = $(C_DEFINES) -DmxDebug=1
 LAUNCH = release
 !ENDIF
 
-!IF "$(PARTITIONS_FILE)"==""
-PARTITIONS_FILE = $(PROJ_DIR_TEMPLATE)\partitions.csv
-!ENDIF
-
 PARTITIONS_BIN = partition-table.bin
 PARTITIONS_PATH = $(BLD_DIR)\partition_table\$(PARTITIONS_BIN)
-
-!IF [fc $(PARTITIONS_FILE) $(PROJ_DIR)\partitions.csv > nul 2> nul] == 1
-!IF [copy /Y $(PARTITIONS_FILE) $(PROJ_DIR)\partitions.csv] == 0
-!IF [copy /b $(PROJ_DIR)\partitions.csv+,, $(PROJ_DIR)\partitions.csv] == 0
-!ENDIF
-!ENDIF
-!ENDIF
 
 PROJ_DIR_FILES = \
 	$(PROJ_DIR)\main\main.c	\
@@ -426,7 +411,6 @@ precursor: idfVersionCheck $(BLE) $(SDKCONFIG_H) $(LIB_DIR) $(BIN_DIR)\xs_$(ESP3
 
 debug: precursor
 	$(KILL_SERIAL2XSBUG)
-	$(KILL_XSBUG)
 	$(START_XSBUG)
 	copy $(BIN_DIR)\xs_$(ESP32_SUBCLASS).a $(BLD_DIR)\.
 	-cd $(PROJ_DIR) & python %IDF_PATH%\tools\idf.py $(IDF_PY_LOG_FLAG) $(PORT_COMMAND) -b $(UPLOAD_SPEED) build flash -D INSTRUMENT=$(INSTRUMENT) -D TMP_DIR="$(TMP_DIR)" -D mxDebug=1 -D SDKCONFIG_HEADER="$(SDKCONFIG_H)" -D CMAKE_MESSAGE_LOG_LEVEL=$(CMAKE_LOG_LEVEL) -D DEBUGGER_SPEED=$(DEBUGGER_SPEED) -D ESP32_SUBCLASS=$(ESP32_SUBCLASS) -D SDKCONFIG_DEFAULTS="$(SDKCONFIG_FILE)"
@@ -439,6 +423,7 @@ debug: precursor
 	$(START_SERIAL2XSBUG)
 
 release: precursor
+	$(KILL_SERIAL2XSBUG)
 	if exist $(BLD_DIR)\xs_esp32.elf del $(BLD_DIR)\xs_esp32.elf
 	if not exist $(BLD_DIR) mkdir $(BLD_DIR)
 	copy $(BIN_DIR)\xs_$(ESP32_SUBCLASS).a $(BLD_DIR)\.
@@ -451,7 +436,6 @@ release: precursor
 
 prepare:
 	$(KILL_SERIAL2XSBUG)
-	$(KILL_XSBUG)
 	$(START_XSBUG)
 	if exist $(BLD_DIR)\xs_esp32.elf del $(BLD_DIR)\xs_esp32.elf
 	if not exist $(BLD_DIR) mkdir $(BLD_DIR)
@@ -471,7 +455,6 @@ build: precursor prepare
 
 xsbug:
 	$(KILL_SERIAL2XSBUG)
-	$(KILL_XSBUG)
 	$(START_XSBUG)
 	$(START_SERIAL2XSBUG)
 
@@ -536,14 +519,10 @@ $(BIN_DIR)\xs_$(ESP32_SUBCLASS).a: $(PROJ_DIR)\main\main.c $(SDKCONFIG_H) $(XS_O
 	$(AR) $(AR_OPTIONS) $(BIN_DIR)\xs_$(ESP32_SUBCLASS).a $(XS_OBJ) $(TMP_DIR)\mc.xs.o $(TMP_DIR)\mc.resources.o $(OBJECTS) $(TMP_DIR)\buildinfo.c.o
 
 $(PROJ_DIR) : $(PROJ_DIR_TEMPLATE)
-	echo d | xcopy /s $(PROJ_DIR_TEMPLATE)\* $(PROJ_DIR)\
-	copy $(PARTITIONS_FILE) $(PROJ_DIR)\partitions.csv
+	echo d | xcopy /s $(PROJ_DIR_TEMPLATE)\* $(PROJ_DIR)
 
 $(PROJ_DIR)\main:
 	mkdir $(PROJ_DIR)\main
-
-$(PROJ_DIR)\partitions.csv: $(PARTITIONS_FILE)
-	copy $? $@
 
 $(PROJ_DIR)\main\main.c: $(PROJ_DIR)\main $(PROJ_DIR_TEMPLATE)\main\main.c
 	copy $(PROJ_DIR_TEMPLATE)\main\main.c $@

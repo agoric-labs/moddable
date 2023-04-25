@@ -34,9 +34,9 @@
 int8_t gWiFiState = -2;	// -2 = uninitialized, -1 - wifi task uninitialized, 0 = not started, 1 = starting, 2 = started, 3 = connecting, 4 = connected, 5 = IP address
 int8_t gDisconnectReason = 0;		// -1 = password rejected
 int8_t gWiFiConnectRetryRemaining;
-int8_t	gWiFiIP;		// 0x01 == IP4, 0x02 == IP6
+int8_t gWiFiIP;		// 0x01 == IP4, 0x02 == IP6
 
-static void initWiFi(void);
+static void initWiFi(int mode);
 
 struct wifiScanRecord {
 	xsSlot			callback;
@@ -53,7 +53,7 @@ void xs_wifi_set_mode(xsMachine *the)
 {
 	int mode = xsmcToInteger(xsArg(0));
 
-	initWiFi();
+	initWiFi(mode);
 
 	if (1 == mode)
 		esp_wifi_set_mode(WIFI_MODE_STA);
@@ -71,7 +71,7 @@ void xs_wifi_get_mode(xsMachine *the)
 {
 	wifi_mode_t mode;
 
-	initWiFi();
+	initWiFi(WIFI_MODE_NULL);
 
 	esp_wifi_get_mode(&mode);
 	if (WIFI_MODE_STA == mode)
@@ -88,7 +88,7 @@ void xs_wifi_scan(xsMachine *the)
 {
 	wifi_scan_config_t config = {0};
 
-	initWiFi();
+	initWiFi(WIFI_MODE_STA);
 
 	if (0 == xsmcArgc) {
 		// clear gScan first because SYSTEM_EVENT_SCAN_DONE is triggered by esp_wifi_scan_stop
@@ -161,7 +161,7 @@ void xs_wifi_connect(xsMachine *the)
 	if (0 == argc)
 		return;
 
-	initWiFi();
+	initWiFi(WIFI_MODE_STA);
 
 	c_memset(&config, 0, sizeof(config));
 
@@ -201,6 +201,7 @@ void xs_wifi_connect(xsMachine *the)
 		config.sta.channel = channel;
 	}
 
+	//@@ does this need to be different for WIFI_MODE_APSTA?
 	esp_wifi_set_config(WIFI_IF_STA, &config); 
 
 	gWiFiConnectRetryRemaining = MODDEF_WIFI_ESP32_CONNECT_RETRIES;
@@ -327,7 +328,6 @@ static void ipEventPending(void *the, void *refcon, uint8_t *message, uint16_t m
     int32_t event_id = *(int32_t *)message;
     const char *msg;
 
-    //@@ NO GOOD! NEED BASE + ID
     switch (event_id) {
         case IP_EVENT_STA_GOT_IP:            msg = "gotIP"; break;
 //        case IP_EVENT_STA_CHANGED_IP:        msg = "changedIP"; break;
@@ -504,13 +504,15 @@ static void doIPEvent(void* arg, esp_event_base_t event_base, int32_t event_id, 
         modMessagePostToMachine(walker->the, (uint8_t *)&event_id, sizeof(event_id), ipEventPending, walker);
 }
 
-void initWiFi(void)
+void initWiFi(int mode)
 {
 	if (gWiFiState > 0) return;
 
 	if (gWiFiState <= -2) {
         esp_netif_init();
-		ESP_ERROR_CHECK(esp_event_loop_create_default());
+		esp_err_t err = esp_event_loop_create_default();
+		if (ESP_ERR_INVALID_STATE != err)		// ESP_ERR_INVALID_STATE indicates the default event loop has already been created
+			ESP_ERROR_CHECK(err);
 	}
 
 	gWiFiState = 1;
@@ -518,7 +520,7 @@ void initWiFi(void)
 	wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
 	cfg.nvs_enable = 0;		// we manage the Wi-Fi connection. don't want surprises from what may be in NVS.
 	ESP_ERROR_CHECK( esp_wifi_init(&cfg) );
-	esp_wifi_set_mode(WIFI_MODE_NULL);
+	esp_wifi_set_mode(mode);
 
 	ESP_ERROR_CHECK( esp_wifi_set_storage(WIFI_STORAGE_RAM) );
 
@@ -539,7 +541,7 @@ void xs_wifi_accessPoint(xsMachine *the)
 	char *str;
 	uint8_t station = 0;
 
-	initWiFi();
+	initWiFi(WIFI_MODE_AP);
 	
 	c_memset(&config, 0, sizeof(config));
 	ap = &config.ap;
