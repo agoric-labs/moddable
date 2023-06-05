@@ -26,8 +26,15 @@ XSBUG_HOST ?= localhost
 XSBUG_PORT ?= 5002
 
 USE_USB ?= 0
-USB_VENDOR_ID ?= beef
-USB_PRODUCT_ID ?= 1cee
+# USE_USB = 1 - TinyUSB - uses a custom VID/PID
+ifeq ($(USE_USB),1) 
+	USB_VENDOR_ID ?= beef
+	USB_PRODUCT_ID ?= 1cee
+else
+	# USE_USB = 2 - built-in CDC/USB
+	USB_VENDOR_ID ?= 303a
+	USB_PRODUCT_ID ?= 1001
+endif
 PROGRAMMING_VID ?= 303a
 PROGRAMMING_PID ?= 1001
 
@@ -81,58 +88,63 @@ endif
 USB_OPTION=
 
 SDKCONFIG_H_DIR = $(BLD_DIR)/config
+
+ifeq ($(USE_USB),0) 
+else
+	USB_OPTION = -DUSE_USB=$(USE_USB)
+endif
+
 ifeq ("$(ESP32_SUBCLASS)","esp32c3")
 	ESP32_TARGET = 4
 else
 ifeq ("$(ESP32_SUBCLASS)","esp32s3")
 	ESP32_TARGET = 3
-	ifeq ($(USE_USB),1) 
-		USB_OPTION = -DUSE_USB=1
-	endif
 else
 	ifeq ("$(ESP32_SUBCLASS)","esp32s2")
 		ESP32_TARGET = 2
 	else
+		# basic esp32 doesn't support USB
 		ESP32_TARGET = 1
+		USB_OPTION =
 	endif
 endif
 endif
 
 
 INC_DIRS = \
- 	$(IDF_PATH)/components \
- 	$(IDF_PATH)/components/bootloader_support/include \
- 	$(IDF_PATH)/components/bt/include \
+	$(IDF_PATH)/components \
+	$(IDF_PATH)/components/bootloader_support/include \
+	$(IDF_PATH)/components/bt/include \
 	$(IDF_PATH)/components/bt/include/$(ESP32_SUBCLASS)/include \
- 	$(IDF_PATH)/components/bt/host/bluedroid/api/include \
- 	$(IDF_PATH)/components/bt/host/bluedroid/api/include/api \
- 	$(IDF_PATH)/components/driver/include \
- 	$(IDF_PATH)/components/driver/include/driver \
+	$(IDF_PATH)/components/bt/host/bluedroid/api/include \
+	$(IDF_PATH)/components/bt/host/bluedroid/api/include/api \
+	$(IDF_PATH)/components/driver/include \
+	$(IDF_PATH)/components/driver/include/driver \
 	$(IDF_PATH)/components/driver/$(ESP32_SUBCLASS)/include \
- 	$(IDF_PATH)/components/driver/$(ESP32_SUBCLASS)/include/driver \
- 	$(IDF_PATH)/components/esp_common/include \
- 	$(IDF_PATH)/components/$(ESP32_SUBCLASS) \
- 	$(IDF_PATH)/components/$(ESP32_SUBCLASS)/include \
- 	$(IDF_PATH)/components/esp_event/include \
- 	$(IDF_PATH)/components/esp_eth/include \
- 	$(IDF_PATH)/components/esp_hw_support/include \
- 	$(IDF_PATH)/components/esp_hw_support/include/soc \
+	$(IDF_PATH)/components/driver/$(ESP32_SUBCLASS)/include/driver \
+	$(IDF_PATH)/components/esp_common/include \
+	$(IDF_PATH)/components/$(ESP32_SUBCLASS) \
+	$(IDF_PATH)/components/$(ESP32_SUBCLASS)/include \
+	$(IDF_PATH)/components/esp_event/include \
+	$(IDF_PATH)/components/esp_eth/include \
+	$(IDF_PATH)/components/esp_hw_support/include \
+	$(IDF_PATH)/components/esp_hw_support/include/soc \
 	$(IDF_PATH)/components/esp_lcd/include \
- 	$(IDF_PATH)/components/esp_netif/include \
- 	$(IDF_PATH)/components/esp_pm/include \
- 	$(IDF_PATH)/components/esp_ringbuf/include \
- 	$(IDF_PATH)/components/esp_rom/include \
- 	$(IDF_PATH)/components/esp_rom/include/$(ESP32_SUBCLASS) \
- 	$(IDF_PATH)/components/esp_system/include \
- 	$(IDF_PATH)/components/esp_timer/include \
- 	$(IDF_PATH)/components/esp_wifi/include \
- 	$(IDF_PATH)/components/$(ESP_ARCH)/include \
+	$(IDF_PATH)/components/esp_netif/include \
+	$(IDF_PATH)/components/esp_pm/include \
+	$(IDF_PATH)/components/esp_ringbuf/include \
+	$(IDF_PATH)/components/esp_rom/include \
+	$(IDF_PATH)/components/esp_rom/include/$(ESP32_SUBCLASS) \
+	$(IDF_PATH)/components/esp_system/include \
+	$(IDF_PATH)/components/esp_timer/include \
+	$(IDF_PATH)/components/esp_wifi/include \
+	$(IDF_PATH)/components/$(ESP_ARCH)/include \
 	$(IDF_PATH)/components/$(ESP_ARCH)/$(ESP32_SUBCLASS)/include \
- 	$(IDF_PATH)/components/freertos \
- 	$(IDF_PATH)/components/freertos/include \
- 	$(IDF_PATH)/components/freertos/include/freertos \
- 	$(IDF_PATH)/components/freertos/port \
- 	$(IDF_PATH)/components/freertos/port/$(ESP_ARCH)/include \
+	$(IDF_PATH)/components/freertos \
+	$(IDF_PATH)/components/freertos/include \
+	$(IDF_PATH)/components/freertos/include/freertos \
+	$(IDF_PATH)/components/freertos/port \
+	$(IDF_PATH)/components/freertos/port/$(ESP_ARCH)/include \
 	$(IDF_PATH)/components/freertos/include/esp_additions \
 	$(IDF_PATH)/components/freertos/include/esp_additions/freertos \
 	$(IDF_PATH)/components/freertos/port/$(ESP_ARCH)/include/freertos \
@@ -140,38 +152,38 @@ INC_DIRS = \
 	$(IDF_PATH)/components/hal/$(ESP32_SUBCLASS)/include \
 	$(IDF_PATH)/components/hal/platform_port/include \
 	$(IDF_PATH)/components/heap/include \
- 	$(IDF_PATH)/components/log/include \
- 	$(IDF_PATH)/components/lwip/include/apps/ \
+	$(IDF_PATH)/components/log/include \
+	$(IDF_PATH)/components/lwip/include/apps/ \
 	$(IDF_PATH)/components/lwip/include/apps/sntp \
- 	$(IDF_PATH)/components/lwip/lwip/src/include/ \
- 	$(IDF_PATH)/components/lwip/port/esp32/ \
- 	$(IDF_PATH)/components/lwip/port/esp32/include/ \
- 	$(IDF_PATH)/components/mbedtls/mbedtls/include/ \
- 	$(IDF_PATH)/components/newlib/include \
- 	$(IDF_PATH)/components/newlib/platform_include \
- 	$(IDF_PATH)/components/bt/host/nimble/esp-hci/include \
- 	$(IDF_PATH)/components/bt/host/nimble/nimble/nimble/host/include \
- 	$(IDF_PATH)/components/bt/host/nimble/nimble/nimble/host/services/gap/include \
- 	$(IDF_PATH)/components/bt/host/nimble/nimble/nimble/host/src \
- 	$(IDF_PATH)/components/bt/host/nimble/nimble/nimble/include \
- 	$(IDF_PATH)/components/bt/host/nimble/nimble/nimble/include/nimble \
- 	$(IDF_PATH)/components/bt/host/nimble/nimble/porting/nimble/include \
- 	$(IDF_PATH)/components/bt/host/nimble/nimble/porting/npl/freertos/include \
- 	$(IDF_PATH)/components/bt/host/nimble/port/include \
-        $(IDF_PATH)/components/soc/$(ESP32_SUBCLASS) \
- 	$(IDF_PATH)/components/soc/$(ESP32_SUBCLASS)/include \
+	$(IDF_PATH)/components/lwip/lwip/src/include/ \
+	$(IDF_PATH)/components/lwip/port/esp32/ \
+	$(IDF_PATH)/components/lwip/port/esp32/include/ \
+	$(IDF_PATH)/components/mbedtls/mbedtls/include/ \
+	$(IDF_PATH)/components/newlib/include \
+	$(IDF_PATH)/components/newlib/platform_include \
+	$(IDF_PATH)/components/bt/host/nimble/esp-hci/include \
+	$(IDF_PATH)/components/bt/host/nimble/nimble/nimble/host/include \
+	$(IDF_PATH)/components/bt/host/nimble/nimble/nimble/host/services/gap/include \
+	$(IDF_PATH)/components/bt/host/nimble/nimble/nimble/host/src \
+	$(IDF_PATH)/components/bt/host/nimble/nimble/nimble/include \
+	$(IDF_PATH)/components/bt/host/nimble/nimble/nimble/include/nimble \
+	$(IDF_PATH)/components/bt/host/nimble/nimble/porting/nimble/include \
+	$(IDF_PATH)/components/bt/host/nimble/nimble/porting/npl/freertos/include \
+	$(IDF_PATH)/components/bt/host/nimble/port/include \
+	$(IDF_PATH)/components/soc/$(ESP32_SUBCLASS) \
+	$(IDF_PATH)/components/soc/$(ESP32_SUBCLASS)/include \
 	$(IDF_PATH)/components/soc/$(ESP32_SUBCLASS)/include/soc \
- 	$(IDF_PATH)/components/soc/include \
- 	$(IDF_PATH)/components/soc/include/soc \
- 	$(IDF_PATH)/components/spiffs/include \
+	$(IDF_PATH)/components/soc/include \
+	$(IDF_PATH)/components/soc/include/soc \
+	$(IDF_PATH)/components/spiffs/include \
 	$(IDF_PATH)/components/fatfs/src \
 	$(IDF_PATH)/components/fatfs/vfs \
 	$(IDF_PATH)/components/wear_levelling/include \
 	$(IDF_PATH)/components/sdmmc/include \
- 	$(IDF_PATH)/components/spi_flash/include \
- 	$(IDF_PATH)/components/tcpip_adapter/include \
- 	$(IDF_PATH)/components/tcpip_adapter \
- 	$(IDF_PATH)/components/tinyusb/additions/include
+	$(IDF_PATH)/components/spi_flash/include \
+	$(IDF_PATH)/components/tcpip_adapter/include \
+	$(IDF_PATH)/components/tcpip_adapter \
+	$(IDF_PATH)/components/tinyusb/additions/include
 	
 XS_OBJ = \
 	$(LIB_DIR)/xsAll.c.o \
@@ -313,6 +325,9 @@ C_FLAGS ?= $(C_COMMON_FLAGS) \
 	-std=gnu99 \
 	$(C_FLAGS_SUBPLATFORM)
 
+#	--machine-fix-esp32-psram-cache-issue --machine-fix-esp32-psram-cache-strategy=memw
+
+
 CPP_FLAGS ?= $(C_COMMON_FLAGS)
 
 # Utility functions
@@ -367,12 +382,16 @@ PARTITIONS_PATH = $(BLD_DIR)/partition_table/$(PARTITIONS_BIN)
 ifeq ($(DEBUG),1)
 	ifeq ($(HOST_OS),Darwin)
 		DO_XSBUG = open -a $(BUILD_DIR)/bin/mac/release/xsbug.app -g
-		ifeq ($(USE_USB),1)
-			DO_LAUNCH = bash -c "serial2xsbug $(USB_VENDOR_ID):$(USB_PRODUCT_ID) $(DEBUGGER_SPEED) 8N1 -elf $(PROJ_DIR)/build/xs_esp32.elf -bin $(GXX_PREFIX)-elf-gdb"
-			LOG_LAUNCH = bash -c \"serial2xsbug $(USB_VENDOR_ID):$(USB_PRODUCT_ID) $(DEBUGGER_SPEED) 8N1 -elf $(PROJ_DIR)/build/xs_esp32.elf -bin $(GXX_PREFIX)-elf-gdb\"
-		else
+		ifeq ($(USE_USB),0)
 			DO_LAUNCH = bash -c "XSBUG_PORT=$(XSBUG_PORT) XSBUG_HOST=$(XSBUG_HOST) serial2xsbug $(SERIAL2XSBUG_PORT) $(DEBUGGER_SPEED) 8N1 -elf $(PROJ_DIR)/build/xs_esp32.elf -bin $(GXX_PREFIX)-elf-gdb"
 			LOG_LAUNCH = bash -c \"XSBUG_PORT=$(XSBUG_PORT) XSBUG_HOST=$(XSBUG_HOST) serial2xsbug $(SERIAL2XSBUG_PORT) $(DEBUGGER_SPEED) 8N1 -elf $(PROJ_DIR)/build/xs_esp32.elf -bin $(GXX_PREFIX)-elf-gdb\"
+		else
+			ifeq ($(USE_USB),1)
+				PROGRAMMING_MODE = $(PLATFORM_DIR)/config/waitForNewSerial 1 
+				# USE_USB == 2 doesn't use PROGRAMMING_MODE
+			endif
+			DO_LAUNCH = bash -c "serial2xsbug $(USB_VENDOR_ID):$(USB_PRODUCT_ID) $(DEBUGGER_SPEED) 8N1 -elf $(PROJ_DIR)/build/xs_esp32.elf -bin $(GXX_PREFIX)-elf-gdb"
+			LOG_LAUNCH = bash -c \"serial2xsbug $(USB_VENDOR_ID):$(USB_PRODUCT_ID) $(DEBUGGER_SPEED) 8N1 -elf $(PROJ_DIR)/build/xs_esp32.elf -bin $(GXX_PREFIX)-elf-gdb\"
 		endif
 
 		ifeq ($(XSBUG_LOG),1)
@@ -382,11 +401,7 @@ ifeq ($(DEBUG),1)
 	### Linux
 	else
 		DO_XSBUG = $(shell nohup $(BUILD_DIR)/bin/lin/release/xsbug > /dev/null 2>&1 &)
-		ifeq ($(USE_USB),1)
-#			DO_LAUNCH = bash -c "serial2xsbug $(USB_VENDOR_ID):$(USB_PRODUCT_ID) $(DEBUGGER_SPEED) 8N1"
-			DO_LAUNCH = bash -c "PATH=\"$(PLATFORM_DIR)/config:$(PATH)\"; connectToXsbugLinux $(USB_VENDOR_ID) $(USB_PRODUCT_ID) $(XSBUG_LOG)"
-			PROGRAMMING_MODE = bash -c "PATH=\"$(PLATFORM_DIR)/config:$(PATH)\"; programmingModeLinux $(PROGRAMMING_VID) $(PROGRAMMING_PID) $(XSBUG_LOG)"
-		else
+		ifeq ($(USE_USB),0)
 			LOG_LAUNCH = bash -c \"XSBUG_PORT=$(XSBUG_PORT) XSBUG_HOST=$(XSBUG_HOST) serial2xsbug $(SERIAL2XSBUG_PORT) $(DEBUGGER_SPEED) 8N1\"
 
 			ifeq ($(XSBUG_LOG),1)
@@ -394,7 +409,12 @@ ifeq ($(DEBUG),1)
 			else
 				DO_LAUNCH = bash -c "XSBUG_PORT=$(XSBUG_PORT) XSBUG_HOST=$(XSBUG_HOST) serial2xsbug $(SERIAL2XSBUG_PORT) $(DEBUGGER_SPEED) 8N1"
 			endif
-
+		else
+			ifeq ($(USE_USB),1)
+				PROGRAMMING_MODE = bash -c "PATH=\"$(PLATFORM_DIR)/config:$(PATH)\"; programmingModeLinux $(PROGRAMMING_VID) $(PROGRAMMING_PID) $(XSBUG_LOG)"
+				# USE_USB == 2 doesn't use PROGRAMMING_MODE
+			endif
+			DO_LAUNCH = bash -c "PATH=\"$(PLATFORM_DIR)/config:$(PATH)\"; connectToXsbugLinux $(USB_VENDOR_ID) $(USB_PRODUCT_ID) $(XSBUG_LOG)"
 		endif
 	endif
 
@@ -402,7 +422,14 @@ ifeq ($(DEBUG),1)
 		DO_XSBUG = 
 	endif
 
-else
+else	# release
+	ifeq ($(USE_USB),1)
+		ifeq ($(HOST_OS),Darwin)
+			PROGRAMMING_MODE = $(PLATFORM_DIR)/config/waitForNewSerial 0 
+			PROGRAMMING_MODE =
+		endif
+	endif
+
 	DO_XSBUG = 
 	DO_LAUNCH = cd $(PROJ_DIR); $(RELEASE_LAUNCH_CMD)
 endif
