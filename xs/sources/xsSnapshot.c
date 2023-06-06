@@ -42,6 +42,7 @@ static txTypeAtomics* fxProjectTypeAtomics(txMachine* the, txTypeAtomics* atomic
 static txTypeDispatch* fxProjectTypeDispatch(txMachine* the, txTypeDispatch* dispatch);
 
 static void fxReadAtom(txMachine* the, txSnapshot* snapshot, Atom* atom, txString type);
+static void fxReadKeyhole(txMachine* the);
 static void fxReadMapSet(txMachine* the, txSlot* table, txBoolean paired);
 static void fxReadSlot(txMachine* the, txSnapshot* snapshot, txSlot* slot, txFlag flag);
 static void fxReadSlotArray(txMachine* the, txSnapshot* snapshot, txSlot* address, txSize length);
@@ -69,7 +70,11 @@ static void fxWriteStack(txMachine* the, txSnapshot* snapshot);
 #define mxThrowIf(_ERROR) { if (_ERROR) { snapshot->error = _ERROR; fxJump(the); } }
 #define mxChunkFlag 0x80000000
 
-#define mxCallbacksLength 496
+#if mxExplicitResourceManagement
+#define mxCallbacksLength 512
+#else
+#define mxCallbacksLength 505
+#endif
 static txCallback gxCallbacks[mxCallbacksLength] = {
 	fx_AggregateError,
 	fx_Array_from,
@@ -106,14 +111,19 @@ static txCallback gxCallbacks[mxCallbacksLength] = {
 	fx_Array_prototype_sort,
 	fx_Array_prototype_splice,
 	fx_Array_prototype_toLocaleString,
+	fx_Array_prototype_toReversed,
+	fx_Array_prototype_toSorted,
+	fx_Array_prototype_toSpliced,
 	fx_Array_prototype_toString,
 	fx_Array_prototype_unshift,
 	fx_Array_prototype_values,
+	fx_Array_prototype_with,
 	fx_Array,
 	fx_ArrayBuffer_fromBigInt,
 	fx_ArrayBuffer_isView,
 	fx_ArrayBuffer_prototype_concat,
 	fx_ArrayBuffer_prototype_get_byteLength,
+	fx_ArrayBuffer_prototype_get_detached,
 	fx_ArrayBuffer_prototype_get_maxByteLength,
 	fx_ArrayBuffer_prototype_get_resizable,
 	fx_ArrayBuffer_prototype_resize,
@@ -230,6 +240,15 @@ static txCallback gxCallbacks[mxCallbacksLength] = {
 	fx_Date_UTC,
 	fx_Date,
 	fx_Date_secure,
+#if mxExplicitResourceManagement
+	fx_DisposableStack,
+	fx_DisposableStack_prototype_get_disposed,
+	fx_DisposableStack_prototype_adopt,
+	fx_DisposableStack_prototype_defer,
+	fx_DisposableStack_prototype_dispose,
+	fx_DisposableStack_prototype_move,
+	fx_DisposableStack_prototype_use,
+#endif
 	fx_decodeURI,
 	fx_decodeURIComponent,
 	fx_encodeURI,
@@ -472,6 +491,7 @@ static txCallback gxCallbacks[mxCallbacksLength] = {
 	fx_String_prototype_valueOf,
 	fx_String_raw,
 	fx_String,
+	fx_SuppressedError,
 	fx_Symbol_for,
 	fx_Symbol_keyFor,
 	fx_Symbol_prototype_get_description,
@@ -516,8 +536,11 @@ static txCallback gxCallbacks[mxCallbacksLength] = {
 	fx_TypedArray_prototype_sort,
 	fx_TypedArray_prototype_subarray,
 	fx_TypedArray_prototype_toLocaleString,
+	fx_TypedArray_prototype_toReversed,
+	fx_TypedArray_prototype_toSorted,
 	fx_TypedArray_prototype_toStringTag_get,
 	fx_TypedArray_prototype_values,
+	fx_TypedArray_prototype_with,
 	fx_TypedArray,
 	fx_TypeError,
 	fx_unescape,
@@ -1174,6 +1197,26 @@ void fxReadAtom(txMachine* the, txSnapshot* snapshot, Atom* atom, txString type)
 	mxAssert((check[0] == type[0]) && (check[1] == type[1]) && (check[2] == type[2]) && (check[3] == type[3]), "snapshot: invalid atom %s\n", type);
 }
 
+void fxReadKeyhole(txMachine* the)
+{
+	txSlot** p;
+	txSlot** q;
+	txSlot* slot;
+	the->keyholeCount = 0;
+	the->keyholeList = C_NULL;
+	p = the->keyArray;
+	q = p + the->keyIndex - the->keyOffset;
+	p++; // skip @
+	while (p < q) {
+		slot = *p;
+		if (slot->kind == XS_UNDEFINED_KIND) {
+			the->keyholeCount++;
+			the->keyholeList = slot;
+		}
+		p++;
+	}
+}
+
 void fxReadMapSet(txMachine* the, txSlot* table, txBoolean paired)
 {
 	txSlot* list = table->next;
@@ -1302,7 +1345,8 @@ txMachine* fxReadSnapshot(txSnapshot* snapshot, txString theName, void* theConte
 			the->keyIndex = atom.atomSize / sizeof(txSlot*);
 			mxThrowIf((*snapshot->read)(snapshot->stream, the->keyArray, atom.atomSize));
 			fxReadSlotTable(the, snapshot, the->keyArray, the->keyIndex);
-	
+			fxReadKeyhole(the);
+
 			fxReadAtom(the, snapshot, &atom, "NAME");
 			the->nameModulo = atom.atomSize / sizeof(txSlot*);
 			mxThrowIf((*snapshot->read)(snapshot->stream, the->nameTable, atom.atomSize));
@@ -1622,6 +1666,7 @@ int fxUseSnapshot(txMachine* the, txSnapshot* snapshot)
 		the->keyIndex = atom.atomSize / sizeof(txSlot*);
 		mxThrowIf((*snapshot->read)(snapshot->stream, the->keyArray, atom.atomSize));
 		fxReadSlotTable(the, snapshot, the->keyArray, the->keyIndex);
+		fxReadKeyhole(the);
 
 		fxReadAtom(the, snapshot, &atom, "NAME");
 		the->nameModulo = atom.atomSize / sizeof(txSlot*);

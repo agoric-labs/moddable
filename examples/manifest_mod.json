@@ -1,4 +1,10 @@
 {
+	"build": {
+		"BUILD": "$(MODDABLE)/build",
+		"MODULES": "$(MODDABLE)/modules",
+		"COMMODETTO": "$(MODULES)/commodetto",
+		"PIU": "$(MODULES)/piu"
+	},
 	"platforms": {
         "esp32/m5atom_echo": {
             "build": {
@@ -42,5 +48,15 @@
                 "DEBUGGER_SPEED": "1500000"
             }
         }
+	},
+	"typescript": {
+		"tsconfig": {
+			"compilerOptions": {
+				"types": [
+					"$(MODDABLE)/xs/includes/xs",
+					"$(MODDABLE)/typings/global"
+				]
+			}
+		}
 	}
 }

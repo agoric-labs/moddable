@@ -454,12 +454,15 @@ txSlot* fxToReference(txMachine* the, txSlot* theSlot)
 
 /* Instances and Prototypes */
 
-txSlot* fxNewArray(txMachine* the, txInteger size)
+txSlot* fxNewArray(txMachine* the, txIndex size)
 {
 	txSlot* instance;
+	txSlot* array;
 	mxPush(mxArrayPrototype);
 	instance = fxNewArrayInstance(the);
-	fxSetIndexSize(the, instance->next, size, XS_CHUNK);
+	array = instance->next;
+	fxSetIndexSize(the, array, size, XS_CHUNK);
+	fxIndexArray(the, array);
 	return instance;
 }
 
@@ -1311,7 +1314,7 @@ void fxThrowMessage(txMachine* the, txString path, txInteger line, txError error
     c_vsnprintf(message + length, sizeof(message) - length, format, arguments);
     va_end(arguments);
 
-	length = c_strlen(message) - 1;
+	length = (txSize)c_strlen(message) - 1;
 	while (length && (0x80 & message[length]))
 		message[length--] = 0;
 
@@ -1572,6 +1575,7 @@ void fxDeleteMachine(txMachine* the)
 		gxDefaults.terminateSharedCluster();
 }
 
+#if mxAliasInstance
 txMachine* fxCloneMachine(txCreation* theCreation, txMachine* theMachine, txString theName, void* theContext)
 {
 	txMachine* the = (txMachine *)c_calloc(sizeof(txMachine), 1);
@@ -1784,6 +1788,7 @@ void fxShareMachine(txMachine* the)
 		the->shared = 1;
 	}
 }
+#endif
 
 /* Garbage Collector */
 
