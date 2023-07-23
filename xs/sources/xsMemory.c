@@ -259,8 +259,8 @@ void* fxCheckChunk(txMachine* the, txChunk* chunk, txSize size, txSize offset)
 
 void fxCheckCStack(txMachine* the)
 {
-    char x;
-    char *stack = &x;
+	char x;
+	char *stack = &x;
 	if (stack <= the->stackLimit) {
 		fxAbort(the, XS_STACK_OVERFLOW_EXIT);
 	}
@@ -621,7 +621,7 @@ void fxGrowSlots(txMachine* the, txSize theCount)
 	if ((void *)-1 == aHeap)
 		return;
 		
-	if (the->firstHeap && (the->firstHeap->value.reference == aHeap)) {
+	/* if (the->firstHeap && (the->firstHeap->value.reference == aHeap)) {
 		the->firstHeap->value.reference = aHeap + theCount;
 		the->maximumHeapCount += theCount;		
 		theCount -= 1;
@@ -634,7 +634,7 @@ void fxGrowSlots(txMachine* the, txSize theCount)
 		the->firstHeap = aHeap;
 		aSlot = aHeap + 1;
 	}
-	else {
+	else */ {
 		the->maximumHeapCount += theCount - 1;
 		aHeap->next = the->firstHeap;
 		aHeap->ID = 0;
@@ -645,7 +645,7 @@ void fxGrowSlots(txMachine* the, txSize theCount)
 		the->firstHeap = aHeap;
 		aSlot = aHeap + 1;
 	}
-    while (theCount--) {
+	while (theCount--) {
 		txSlot* next = aSlot + 1;
 		aSlot->next = next;
 		aSlot->flag = XS_NO_FLAG;
@@ -653,8 +653,8 @@ void fxGrowSlots(txMachine* the, txSize theCount)
 	#if mxPoisonSlots
 		ASAN_POISON_MEMORY_REGION(&aSlot->value, sizeof(aSlot->value));
 	#endif
-        aSlot = next;
-    }
+		aSlot = next;
+	}
 	aSlot->next = the->freeHeap;
 	aSlot->flag = XS_NO_FLAG;
 	aSlot->kind = XS_UNDEFINED_KIND;
@@ -694,7 +694,7 @@ void fxMark(txMachine* the, void (*theMarker)(txMachine*, txSlot*))
 	
 	slot = the->stackTop;
 	while (slot > the->stack) {
-        slot--;
+		slot--;
 		(*theMarker)(the, slot);
 	}
 	slot = the->cRoot;
@@ -1448,7 +1448,7 @@ void fxMarkValue(txMachine* the, txSlot* theSlot)
 			aSlot = aSlot->next;
 			while (aSlot) {
 				aSlot->flag |= XS_MARK_FLAG;
-                fxCheckCStack(the);
+				fxCheckCStack(the);
 				fxMarkValue(the, aSlot); // holdings
 				aSlot = aSlot->next;
 				if (aSlot) {
