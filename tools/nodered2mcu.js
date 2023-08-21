@@ -1094,7 +1094,13 @@ export default class extends TOOL {
 							break;
 
 						case "mqtt":
+							if (config.usetls)
+								throw new Error(`TLS configuration not allowed for mqtt URLs - disable "Use TLS"`);
+							break;
+
 						case "mqtts":
+							if (!config.usetls || !config.tls)
+								throw new Error(`TLS configuration required for mqtts URLs - enable "Use TLS"`)
 							break;
 
 						default:
@@ -1104,8 +1110,12 @@ export default class extends TOOL {
 					
 					config.broker = config.broker.slice(index + 3);
 				}
+				
+				if (!config.usetls) {
+					delete config.usetls;
+					delete config.tls;
+				}
 
-				config.port = config.port ? parseInt(config.port) : 1883;
 				config.keepalive = (parseInt(config.keepalive) || 60) * 1000;
 
 			} break;
@@ -1141,9 +1151,6 @@ export default class extends TOOL {
 			} break;
 			
 			case "tls-config": {
-				if (config.key || config.cert || config.credentials?.keydata || config.credentials?.certdata)
-					throw new Error("private keys not yet implemented");
-				
 				if (config.alpnprotocol)
 					throw new Error("ALPN not yet implemented");
 
@@ -1962,6 +1969,28 @@ export default class extends TOOL {
 
 							if (data) {
 								data = Transform.pemToDER(data);
+								return true;
+							}
+							break;
+						case "cert":
+							if (config.cert)
+								data = this.readFileString(config.cert);
+							else if (credentials?.[config.id]?.certdata)
+								data = credentials?.[config.id].certdata;
+
+							if (data) {
+								data = Transform.pemToDER(data);
+								return true;
+							}
+							break;
+						case "key":
+							if (config.key)
+								data = this.readFileString(config.key);
+							else if (credentials?.[config.id]?.keydata)
+								data = credentials?.[config.id].keydata;
+
+							if (data) {
+								data = Transform.privateKeyToPrivateKeyInfo(Transform.pemToDER(data));
 								return true;
 							}
 							break;

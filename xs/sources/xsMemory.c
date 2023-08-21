@@ -224,6 +224,13 @@ void fxAllocate(txMachine* the, txCreation* theCreation)
 	the->cRoot = C_NULL;
 	the->parserBufferSize = theCreation->parserBufferSize;
 	the->parserTableModulo = theCreation->parserTableModulo;
+	
+#ifdef mxDebug
+	the->pathCount = 256;
+	the->pathValue = c_malloc(the->pathCount);
+	if (!the->pathValue)
+		fxAbort(the, XS_NOT_ENOUGH_MEMORY_EXIT);
+#endif
 }
 
 void* fxCheckChunk(txMachine* the, txChunk* chunk, txSize size, txSize offset)
@@ -621,18 +628,20 @@ void fxGrowSlots(txMachine* the, txSize theCount)
 	if ((void *)-1 == aHeap)
 		return;
 		
-	if (the->firstHeap && (the->firstHeap->value.reference == aHeap)) {
-		the->firstHeap->value.reference = aHeap + theCount;
-		the->maximumHeapCount += theCount;		
-		theCount -= 1;
-		aSlot = aHeap;
-	}
-	else if ((aHeap + theCount) == the->firstHeap) {
-		*aHeap = *(the->firstHeap);
-		the->maximumHeapCount += theCount;
-		theCount -= 1;
-		the->firstHeap = aHeap;
-		aSlot = aHeap + 1;
+	if (the->firstHeap && the->growHeapDirection) {
+		if (the->growHeapDirection > 0) {
+			the->firstHeap->value.reference = aHeap + theCount;
+			the->maximumHeapCount += theCount;		
+			theCount -= 1;
+			aSlot = aHeap;
+		}
+		else {
+			*aHeap = *(the->firstHeap);
+			the->maximumHeapCount += theCount;
+			theCount -= 1;
+			the->firstHeap = aHeap;
+			aSlot = aHeap + 1;
+		}
 	}
 	else {
 		the->maximumHeapCount += theCount - 1;
@@ -1081,11 +1090,17 @@ void fxMarkReference(txMachine* the, txSlot* theSlot)
 			fxMarkInstance(the, aSlot, fxMarkReference);
 		break;
 		
+	case XS_BREAKPOINT_KIND:
+		aSlot = theSlot->value.breakpoint.info;
+		if (aSlot && (!(aSlot->flag & XS_MARK_FLAG)))
+			fxMarkInstance(the, aSlot, fxMarkValue);
+		break;
 	case XS_ERROR_KIND:
 		aSlot = theSlot->value.error.info;
 		if (aSlot && (!(aSlot->flag & XS_MARK_FLAG)))
 			fxMarkInstance(the, aSlot, fxMarkReference);
 		break;
+	case XS_ASYNC_DISPOSABLE_STACK_KIND:
 	case XS_DISPOSABLE_STACK_KIND:
 	case XS_LIST_KIND:
 		fxCheckCStack(the);
@@ -1354,11 +1369,17 @@ void fxMarkValue(txMachine* the, txSlot* theSlot)
 			mxMarkChunk(theSlot->value.key.string);
 		break;
 		
+	case XS_BREAKPOINT_KIND:
+		aSlot = theSlot->value.breakpoint.info;
+		if (aSlot && (!(aSlot->flag & XS_MARK_FLAG)))
+			fxMarkInstance(the, aSlot, fxMarkValue);
+		break;
 	case XS_ERROR_KIND:
 		aSlot = theSlot->value.error.info;
 		if (aSlot && (!(aSlot->flag & XS_MARK_FLAG)))
 			fxMarkInstance(the, aSlot, fxMarkValue);
 		break;
+	case XS_ASYNC_DISPOSABLE_STACK_KIND:
 	case XS_DISPOSABLE_STACK_KIND:
 	case XS_LIST_KIND:
 		aSlot = theSlot->value.list.first;
