@@ -1,20 +1,22 @@
 {
 	"build": {
 		"ESP32_SUBCLASS": "esp32s3",
-		"USE_USB": "1",
-		"SDKCONFIGPATH": "./sdkconfig"
+		"USE_USB": "2",
+		"SDKCONFIGPATH": "./sdkconfig",
+		"PARTITIONS_FILE": "./sdkconfig/partitions.csv"
 	},
 	"include": [
+		"$(MODDABLE)/modules/io/manifest.json",
 		"$(MODDABLE)/modules/drivers/ili9341/manifest.json",
 		"$(MODDABLE)/modules/drivers/ft6206/manifest.json",
-		"$(MODDABLE)/modules/drivers/axp2101/manifest.json"
+		"$(MODDABLE)/modules/drivers/axp2101/manifest.json",
+		"$(MODDABLE)/modules/drivers/peripherals/bm8563/manifest.json"
 	],
 	"config": {
 		"screen": "ili9341",
 		"virtualButton": false,
 		"touch": "M5StackCoreS3Touch",
-		"startupSound": "bflatmajor.maud",
-		"startupVibration": 600
+		"startupSound": "bflatmajor.maud"
 	},
 	"modules": {
 		"setup/target": "./setup-target",

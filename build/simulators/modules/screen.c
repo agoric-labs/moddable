@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2022 Moddable Tech, Inc.
+ * Copyright (c) 2016-2023 Moddable Tech, Inc.
  *
  *   This file is part of the Moddable SDK Tools.
  * 
@@ -344,6 +344,11 @@ static int32_t modInstrumentationStackRemain(xsMachine *the)
 	return (the->stackTop - the->stackPeak) * sizeof(txSlot);
 }
 
+static int32_t modInstrumentationPromisesSettledCount(xsMachine *the)
+{
+	return the->promisesSettledCount;
+}
+
 #endif
 
 static uint16_t gSetupPending = 0;
@@ -375,13 +380,14 @@ static void setStepDone(txMachine *the)
 	xsBeginHost(the);
 #if MODDEF_MAIN_ASYNC
 		xsVars(2);
-		xsResult = xsAwaitImport(((txPreparation *)xsPreparationAndCreation(NULL))->main, XS_IMPORT_ASYNC);
+		xsResult = xsImport(((txPreparation *)xsPreparationAndCreation(NULL))->main);
 		xsVar(0) = xsNewHostFunction(setStepDoneFulfilled, 1);
 		xsVar(1) = xsNewHostFunction(setStepDoneRejected, 1);
 		xsCall2(xsResult, xsID_then, xsVar(0), xsVar(1));
 #else	
 		xsVars(1);
-		xsVar(0) = xsAwaitImport(((txPreparation *)xsPreparationAndCreation(NULL))->main, XS_IMPORT_DEFAULT);
+		xsVar(0) = xsImportNow(((txPreparation *)xsPreparationAndCreation(NULL))->main);
+		xsVar(0) = xsGet(xsVar(0), xsID_default);
 		if (xsTest(xsVar(0))) {
 			if (xsIsInstanceOf(xsVar(0), xsFunctionPrototype)) {
 				xsCallFunction0(xsVar(0), xsGlobal);
@@ -405,6 +411,7 @@ void fxScreenLaunch(txScreen* screen)
 	static xsStringValue signature = PIU_DOT_SIGNATURE;
 	txPreparation* preparation = xsPreparation();
 	void* archive = (screen->archive) ? fxMapArchive(C_NULL, preparation, screen->archive, 4 * 1024, fxArchiveRead, fxArchiveWrite) : NULL;
+	txFlag breakOnStartFlag;
 	screen->machine = fxPrepareMachine(NULL, preparation, strrchr(signature, '.') + 1, screen, archive);
 	if (!screen->machine)
 		return;	
@@ -424,10 +431,13 @@ void fxScreenLaunch(txScreen* screen)
 	modInstrumentationSetCallback(GarbageCollectionCount, (ModInstrumentationGetter)modInstrumentationGarbageCollectionCount);
 	modInstrumentationSetCallback(ModulesLoaded, (ModInstrumentationGetter)modInstrumentationModulesLoaded);
 	modInstrumentationSetCallback(StackRemain, (ModInstrumentationGetter)modInstrumentationStackRemain);
+	modInstrumentationSetCallback(PromisesSettledCount, (ModInstrumentationGetter)modInstrumentationPromisesSettledCount);
 	((txMachine*)(screen->machine))->onBreak = debugBreak;
 	fxDescribeInstrumentation(screen->machine, screenInstrumentCount, screenInstrumentNames, screenInstrumentUnits);
 	fxScreenSampleInstrumentation(screen);
 #endif	
+
+	breakOnStartFlag = ((txMachine*)screen->machine)->breakOnStartFlag;
 	xsBeginHost(screen->machine);
 	{
 		xsVars(2);
@@ -504,6 +514,7 @@ void fxScreenLaunch(txScreen* screen)
 				if (dot)
 					*dot = 0;
 
+				breakOnStartFlag = 0;
 				xsResult = xsAwaitImport(path, XS_IMPORT_DEFAULT);
 				if (xsTest(xsResult) && xsIsInstanceOf(xsResult, xsFunctionPrototype)) {
 					gSetupPending += 1;
@@ -517,7 +528,8 @@ void fxScreenLaunch(txScreen* screen)
 	}
 	xsEndHost(screen->machine);
 	
-  setStepDone(screen->machine);
+	((txMachine*)screen->machine)->breakOnStartFlag = breakOnStartFlag;
+	setStepDone(screen->machine);
 }
 
 #ifdef mxInstrument
@@ -537,6 +549,7 @@ void fxScreenSampleInstrumentation(txScreen* screen)
 	the->garbageCollectionCount = 0;
 	the->stackPeak = the->stack;
 	the->floatingPointOps = 0;
+	the->promisesSettledCount = 0;
 }
 #endif
 
