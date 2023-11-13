@@ -1672,13 +1672,11 @@ void fxPatternParserError(txPatternParser* parser, txString format, ...)
 	txString pattern = parser->pattern;
 	txString error = parser->error;
 	txInteger offset = parser->offset;
-    if (offset > 80) {
-        pattern += offset - 80;
-        offset = 80;
-		while (0x80 & *pattern) {
-			pattern++;
-			offset--;
-		}
+    while (offset > 80) {
+		txInteger character;
+		txString p = mxStringByteDecode(pattern, &character);
+    	offset -= p - pattern;
+    	pattern = p;
     }
 	while (offset) {
 		*error++ = c_read8(pattern++);
@@ -2400,7 +2398,7 @@ txBoolean fxMatchRegExp(void* the, txInteger* code, txInteger* data, txString su
 							mxBreak;
 						}
 						quantifier->min = (quantifier->min == 0) ? 0 : quantifier->min - 1;
-						quantifier->max = (quantifier->max == 0x7FFFFFFF) ? 0x7FFFFFFF : quantifier->max - 1;
+						quantifier->max = (quantifier->max == 0x7FFFFFFF) ? 0x7FFFFFFF : (quantifier->max == 0) ? 0 : quantifier->max - 1;
 						mxBreak;
 					mxCase(cxWordBreakStep):
 						step = *pointer;

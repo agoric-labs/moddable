@@ -414,11 +414,14 @@ void fxScreenLaunch(txScreen* screen)
 {
 	static xsStringValue signature = PIU_DOT_SIGNATURE;
 	txPreparation* preparation = xsPreparation();
-	void* archive = (screen->archive) ? fxMapArchive(C_NULL, preparation, screen->archive, 4 * 1024, fxArchiveRead, fxArchiveWrite) : NULL;
 	txFlag breakOnStartFlag;
-	screen->machine = fxPrepareMachine(NULL, preparation, strrchr(signature, '.') + 1, screen, archive);
+	screen->machine = fxPrepareMachine(NULL, preparation, strrchr(signature, '.') + 1, screen, C_NULL);
 	if (!screen->machine)
-		return;	
+		return;
+	if (screen->archive) {
+		if (fxMapArchive(screen->machine, preparation, screen->archive, 4 * 1024, fxArchiveRead, fxArchiveWrite))
+			fxSetArchive(screen->machine, screen->archive);
+	}
 	((txMachine*)(screen->machine))->host = screen;
 	screen->idle = fxScreenIdle;
 	screen->invoke = fxScreenInvoke;
