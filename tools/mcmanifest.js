@@ -67,6 +67,13 @@ export class MakeFile extends FILE {
 				tool.fragmentPath = tool.environment.MAKE_FRAGMENT;
 		if (undefined === tool.fragmentPath)
 			throw new Error("unknown platform: MAKE_FRAGMENT not found!");
+
+		for (var result of tool.pioFiles) {
+			var source = result.source;
+			var target = result.target;
+			this.line("PIO_HEADERS += $(TMP_DIR)", tool.slash, target, ".pio.h");
+		}
+
 		this.write(tool.readFileString(tool.fragmentPath));
 		this.line("");
 		this.generateRules(tool)
@@ -472,8 +479,17 @@ otadata, data, ota, , ${OTADATA_SIZE},`;
 		this.line("XS_DIR = ", tool.xsPath);
 		this.line("XSBUG_HOST = ", tool.xsbug?.host ?? "localhost");
 		this.line("XSBUG_PORT = ", tool.xsbug?.port ?? 5002);
-		if (tool.xsbugLog)
-			this.line("XSBUG_LOG = 1");
+		if (tool.debug) {
+			if ("default" === tool.xsbugLaunch) {
+				if ("vscode" === tool.getenv("TERM_PROGRAM"))
+					tool.xsbugLaunch = "none";
+				else
+					tool.xsbugLaunch = "app";
+			}
+			this.line("XSBUG_LAUNCH = ", tool.xsbugLaunch);
+			if ("log" === tool.xsbugLaunch)
+				this.line("XSBUG_LOG = 1");
+		}
 		
 		this.line("");
 
@@ -629,6 +645,16 @@ otadata, data, ota, , ${OTADATA_SIZE},`;
 			this.line("\t", tool.typescript.compiler, " -p $(MODULES_DIR)", tool.slash, "tsconfig.json");
 			this.line("");
 		}
+
+		for (var result of tool.pioFiles) {
+			var source = result.source;
+			var target = result.target;
+			this.line("$(TMP_DIR)", tool.slash, target, ".pio.h: ", source);
+			this.echo(tool, "pioasm ", target);
+			this.line("\t$(PIOASM) -o c-sdk $< $@");
+			this.line("");
+		}
+
 	}
 	generateObjectsDefinitions(tool) {
 	}
@@ -1168,8 +1194,13 @@ class Rule {
 				else
 					this.appendSource(target + name, path, include, suffix, parts, kind, query);
 			}
-			if (!this.count)
-				this.noFilesMatch(source, star);
+			if (!this.count) {
+				var trailingSlash = source.lastIndexOf("/");
+				if (trailingSlash == source.length - 1)
+					this.appendFolder(tool.cFolders, source);
+				else 
+					this.noFilesMatch(source, star);
+			}
 		}
 		else
 			tool.reportError(null, 0, "directory not found: " + source);
@@ -1297,6 +1328,8 @@ class ModulesRule extends Rule {
 			if ("nodered2mcu" === query.transform)
 				this.appendFile(tool.nodered2mcuFiles, target, source, include);
 		}
+		else if (parts.extension == ".pio")
+			this.appendFile(tool.pioFiles, target, source, include);
 	}
 	appendTarget(target) {
 		this.appendFolder(this.tool.jsFolders, target);
@@ -1416,6 +1449,10 @@ class ResourcesRule extends Rule {
 		var tool = this.tool;
 		this.appendFile(tool.soundFiles, name + ".maud", path, include);
 	}
+	appendPIO(name, path, include, suffix) {
+		var tool = this.tool;
+		this.appendFile(tool.pioFiles, name + ".h", path, include);
+	}
 	appendSource(target, source, include, suffix, parts, kind, query) {
 		var tool = this.tool;
 		if (kind < 0) {
@@ -1472,6 +1509,10 @@ class ResourcesRule extends Rule {
 				this.appendOutlineFont(target, source, include, suffix, query);
 				return;
 			}
+			if (parts.extension == "pio") {
+				this.appendPIO(target, source, include, suffix);
+				return;
+			}
 		}
 		if (moduleExtensions.indexOf(parts.extension) >= 0)
 			return;
@@ -1500,6 +1541,7 @@ export class Tool extends TOOL {
 		}
 		this.config = {};
 		this.debug = false;
+		this.xsbugLaunch = "none";
 		this.environment = { "MODDABLE": this.moddablePath }
 		this.format = null;
 		this.instrument = false;
@@ -1525,6 +1567,22 @@ export class Tool extends TOOL {
 			case "-d":
 				this.debug = true;
 				this.instrument = true;
+				this.xsbugLaunch = "default";
+				break;
+			case "-dn":
+				this.debug = true;
+				this.instrument = true;
+				this.xsbugLaunch = "none";
+				break;
+			case "-dx":
+				this.debug = true;
+				this.instrument = true;
+				this.xsbugLaunch = "app";
+				break;
+			case "-dl":
+				this.debug = true;
+				this.instrument = true;
+				this.xsbugLaunch = "log";
 				break;
 			case "-f":
 				argi++;
@@ -1632,7 +1690,8 @@ export class Tool extends TOOL {
 				};
 				break;
 			case "-l":
-				this.xsbugLog = true;
+				this.xsbugLaunch = "log";
+				this.reportWarning(null, 0, "-l deprecated. use -dl instead.");				
 				break;
 			default:
 				name = argv[argi];
@@ -2168,6 +2227,8 @@ export class Tool extends TOOL {
 		this.stringFiles.already = {};
 		this.bleServicesFiles = [];
 		this.bleServicesFiles.already = {};
+		this.pioFiles = [];
+		this.pioFiles.already = {};
 
 		var rule = new DataRule(this);
 		rule.process(this.manifest.data);

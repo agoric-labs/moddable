@@ -251,6 +251,8 @@ void fxDebugEval(txMachine* the, txSlot* frame, txString buffer, txInteger index
 // #if mxDebugEval
 	txSlot* result;
 	txSlot* expression;
+	mxHostInspectors.value.list.first = C_NULL;
+	mxHostInspectors.value.list.last = C_NULL;
 	mxTemporary(result);
 	mxTemporary(expression);
 	fxDebugEvalBuffer(the, buffer, expression);
@@ -265,8 +267,12 @@ void fxDebugEval(txMachine* the, txSlot* frame, txString buffer, txInteger index
 			txSlot* instanceInspector = fxToInstanceInspector(the, instance);
 			if (!instanceInspector)
 				fxToggle(the, instance);
+			fxEchoProperty(the, result, &aList, C_NULL, -1, C_NULL);
+			if (!instanceInspector)
+				fxToggle(the, instance);
 		}
-		fxEchoProperty(the, result, &aList, C_NULL, -1, C_NULL);
+		else
+			fxEchoProperty(the, result, &aList, C_NULL, -1, C_NULL);
 		fxEcho(the, "</result>");
 		fxListLocal(the);
 		fxListGlobal(the);
@@ -372,13 +378,15 @@ txBoolean fxDebugEvalExpression(txMachine* the, txSlot* frame, txSlot* expressio
 				current = current->next;
 			if (current)
 				scope = current->value.frame.scope;
+			else
+				scope = C_NULL;
 		}
 	
-		txSlot* _this = mxThis;
+		txSlot* _this = frame + 4;
 		txSlot* environment = mxFrameToEnvironment(frame);
-		txSlot* function = mxFunction;
-		txSlot* home = mxFunctionInstanceHome(function->value.reference);
-		txSlot* target = mxTarget;
+		txSlot* function = frame + 3;
+		txSlot* home = (function->kind == XS_REFERENCE_KIND) ? mxFunctionInstanceHome(function->value.reference) : C_NULL;
+		txSlot* target = frame + 2;
 		txSlot* closures;
 		txSlot* property;
 	
@@ -424,8 +432,10 @@ txBoolean fxDebugEvalExpression(txMachine* the, txSlot* frame, txSlot* expressio
 		property = mxFunctionInstanceCode(expression->value.reference);
 		property->value.code.closures = closures;
 		property = mxFunctionInstanceHome(expression->value.reference);
-		property->value.home.object = home->value.home.object;
-		property->value.home.module = home->value.home.module;
+		if (home) {
+			property->value.home.object = home->value.home.object;
+			property->value.home.module = home->value.home.module;
+		}
 		if (property->value.home.module == C_NULL)
 			property->value.home.module = mxProgram.value.reference;
 	
@@ -555,48 +565,52 @@ void fxDebugLine(txMachine* the, txID path, txInteger line, txID function)
 				if (skip)
 					breakpoint = C_NULL;
 			}
-			property = property->next;
-			if (!mxIsUndefined(property)) {
-				txInteger offset = property->value.dataView.offset + 1;
-				txInteger size = property->value.dataView.size;
-				txBoolean skip = 1;
-				switch (property->ID) {
-				case XS_CODE_EQUAL: if (offset == size) skip = 0; break;
-				case XS_CODE_LESS: if (offset < size) skip = 0; break;
-				case XS_CODE_LESS_EQUAL: if (offset <= size) skip = 0; break;
-				case XS_CODE_MODULO: if ((offset % size) == 0) skip = 0; break;
-				case XS_CODE_MORE: if (offset > size) skip = 0; break;
-				case XS_CODE_MORE_EQUAL: if (offset >= size) skip = 0; break;
+			if (breakpoint) {
+				property = property->next;
+				if (!mxIsUndefined(property)) {
+					txInteger offset = property->value.dataView.offset + 1;
+					txInteger size = property->value.dataView.size;
+					txBoolean skip = 1;
+					switch (property->ID) {
+					case XS_CODE_EQUAL: if (offset == size) skip = 0; break;
+					case XS_CODE_LESS: if (offset < size) skip = 0; break;
+					case XS_CODE_LESS_EQUAL: if (offset <= size) skip = 0; break;
+					case XS_CODE_MODULO: if ((offset % size) == 0) skip = 0; break;
+					case XS_CODE_MORE: if (offset > size) skip = 0; break;
+					case XS_CODE_MORE_EQUAL: if (offset >= size) skip = 0; break;
+					}
+					property->value.dataView.offset = offset;
+					if (skip)
+						breakpoint = C_NULL;
 				}
-				property->value.dataView.offset = offset;
-				if (skip)
-					breakpoint = C_NULL;
 			}
-			property = property->next;
-			if (!mxIsUndefined(property)) {
-				txSlot* result;
-				mxTemporary(result);
-				if (fxDebugEvalExpression(the, the->frame, property, result)) {
-					fxToString(the, result);
-					fxEchoStart(the);
-					fxEcho(the, "<log");
-					fxEchoPathLine(the, fxGetKeyName(the, path), line);
-					fxEcho(the, ">");
-					fxEchoString(the, result->value.string);
-					fxEcho(the, "\n</log>");
-					fxEchoStop(the);
+			if (breakpoint) {
+				property = property->next;
+				if (!mxIsUndefined(property)) {
+					txSlot* result;
+					mxTemporary(result);
+					if (fxDebugEvalExpression(the, the->frame, property, result)) {
+						fxToString(the, result);
+						fxEchoStart(the);
+						fxEcho(the, "<log");
+						fxEchoPathLine(the, fxGetKeyName(the, path), line);
+						fxEcho(the, ">");
+						fxEchoString(the, result->value.string);
+						fxEcho(the, "\n</log>");
+						fxEchoStop(the);
+					}
+					else {
+						fxEchoStart(the);
+						fxEcho(the, "<log");
+						fxEchoPathLine(the, fxGetKeyName(the, path), line);
+						fxEcho(the, "># ");
+						fxEchoException(the, result);
+						fxEcho(the, "\n</log>");
+						fxEchoStop(the);
+					}
+					mxPop();
+					breakpoint = C_NULL;
 				}
-				else {
-					fxEchoStart(the);
-					fxEcho(the, "<log");
-					fxEchoPathLine(the, fxGetKeyName(the, path), line);
-					fxEcho(the, "># ");
-					fxEchoException(the, result);
-					fxEcho(the, "\n</log>");
-					fxEchoStop(the);
-				}
-				mxPop();
-				breakpoint = C_NULL;
 			}
 		}
 	}
@@ -1031,6 +1045,9 @@ void fxDebugPopTag(txMachine* the)
 	case XS_BREAKPOINT_HIT_COUNT_TAG:
 		break;
 	case XS_BREAKPOINT_TRACE_TAG:
+		break;
+	case XS_CLEAR_ALL_BREAKPOINTS_TAG:
+		the->debugExit |= 1;
 		break;
 	case XS_CLEAR_BREAKPOINTS_TAG:
 		the->debugExit |= 1;
@@ -2956,6 +2973,9 @@ void fxVReportWarning(void* console, txString thePath, txInteger theLine, txStri
 }
 
 #ifdef mxInstrument	
+#if kCPUESP32C6 || kCPUESP32H2
+#define ICACHE_XS6STRING_ATTR
+#endif
 #define xsInstrumentCount 12
 static char* const xsInstrumentNames[xsInstrumentCount] ICACHE_XS6STRING_ATTR = {
 	"Chunk used",

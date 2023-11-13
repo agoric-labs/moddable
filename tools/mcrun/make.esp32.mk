@@ -19,12 +19,9 @@
 
 HOST_OS := $(shell uname)
 
-PROJ_DIR_TEMPLATE = $(BUILD_DIR)/devices/esp32/xsProj-$(ESP32_SUBCLASS)
-
-UPLOAD_PORT ?= $(shell bash -c "python $(PROJ_DIR_TEMPLATE)/getPort.py")
-
 ifeq ($(HOST_OS),Darwin)
-	ifeq ($(findstring _11.,_$(shell sw_vers -productVersion)),_11.)
+	VERS = $(shell sw_vers -productVersion | cut -f1 -d.)
+	ifeq ($(shell test $(VERS) -gt 10; echo $$?), 0)
 		UPLOAD_PORT ?= /dev/cu.usbserial-0001
 	else
 		UPLOAD_PORT ?= /dev/cu.SLAB_USBtoUART
@@ -56,24 +53,46 @@ else
 endif
 endif
 
+#	USE_USB = 1
+
+USE_USB ?= 0
+ifeq ($(USE_USB),1)
+	USB_VENDOR_ID ?= beef
+	USB_PRODUCT_ID ?= 1cee
+else
+	USB_VENDOR_ID ?= 303a
+	USB_PRODUCT_ID ?= 1001
+endif
+PROGRAMMING_VID ?= 303a
+PROGRAMMING_PID ?= 1001
+
+KILL_SERIAL2XSBUG = $(shell pkill serial2xsbug)
+DO_MOD_UPLOAD = XSBUG_PORT=$(XSBUG_PORT) XSBUG_HOST=$(XSBUG_HOST) serial2xsbug $(UPLOAD_PORT) $(DEBUGGER_SPEED) 8N1 -install $(ARCHIVE)
+
 ifeq ($(DEBUG),1)
 	ifeq ($(HOST_OS),Darwin)
 		START_XSBUG = open -a $(BUILD_DIR)/bin/mac/release/xsbug.app -g
+		ifneq ($(USE_USB),0)
+			DO_MOD_UPLOAD = XSBUG_PORT=$(XSBUG_PORT) XSBUG_HOST=$(XSBUG_HOST) serial2xsbug $(USB_VENDOR_ID):$(USB_PRODUCT_ID) $(DEBUGGER_SPEED) 8N1 -install $(ARCHIVE) -norestart
+		else
+		endif
 	else
 		START_XSBUG = $(shell nohup $(BUILD_DIR)/bin/lin/release/xsbug > /dev/null 2>&1 &)
 	endif
 endif
 
 all: $(LAUNCH)
+
 	
 debug: $(ARCHIVE)
-	$(shell pkill serial2xsbug)
+	$(KILL_SERIAL2XSBUG)
 	$(START_XSBUG)
-	XSBUG_PORT=$(XSBUG_PORT) XSBUG_HOST=$(XSBUG_HOST) serial2xsbug $(UPLOAD_PORT) $(DEBUGGER_SPEED) 8N1 -install $(ARCHIVE)
+	@echo "## $(DO_MOD_UPLOAD)"
+	$(DO_MOD_UPLOAD)
 	
 release: $(ARCHIVE)
-	$(shell pkill serial2xsbug)
-	XSBUG_PORT=$(XSBUG_PORT) XSBUG_HOST=$(XSBUG_HOST) serial2xsbug $(UPLOAD_PORT) $(DEBUGGER_SPEED) 8N1 -install $(ARCHIVE)
+	$(KILL_SERIAL2XSBUG)
+	$(DO_MOD_UPLOAD)
 
 debugURL: $(ARCHIVE)
 	@echo "# curl "$(NAME)".xsa "$(URL)

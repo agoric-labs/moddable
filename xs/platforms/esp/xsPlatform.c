@@ -43,12 +43,15 @@
 #include "mc.defines.h"
 
 #if ESP32
-#if ESP32 != 3
+#if ESP32 < 2
 	#include "esp32/rom/ets_sys.h"
 #endif
 	#include "nvs_flash/include/nvs_flash.h"
 	#include "esp_partition.h"
 	#include "esp_wifi.h"
+	#if MODDEF_XS_MODS
+		#include "spi_flash/include/spi_flash_mmap.h"
+	#endif
 #else
 	#include "tinyprintf.h"
 	#include "spi_flash.h"
@@ -225,6 +228,11 @@ void fxAbort(txMachine* the, int status)
 			return;
 		}
 	}
+#endif
+
+#ifdef mxDebug
+	if ((XS_DEAD_STRIP_EXIT == status) && the->debugEval)
+		mxUnknownError("dead strip");
 #endif
 
 #if defined(mxDebug) || defined(mxInstrument) || defined(MODDEF_XS_ABORTHOOK)
