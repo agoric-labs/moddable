@@ -52,6 +52,9 @@ extern "C" {
 		#define mxBoundsCheck 0
 	#endif
 #endif
+#ifndef mxKeysGarbageCollection
+	#define mxKeysGarbageCollection 0
+#endif
 #ifndef mxRegExp
 	#define mxRegExp 1
 #endif
@@ -272,6 +275,7 @@ typedef union {
 	struct { txSlot* target; txSlot* link; } weakRef;
 	struct { txSlot* callback; txUnsigned flags; } finalizationRegistry;
 	struct { txSlot* target; txSlot* token; } finalizationCell;
+	struct { txSlot* stack; txBoolean disposed; } disposableStack;
 	
 	struct { txSlot* getter; txSlot* setter; } accessor;
 	struct { txU4 index; txID id; } at;
@@ -406,8 +410,10 @@ struct sxMachine {
 	txSlot** nameTable;
 	txSize symbolModulo;
 	txSlot** symbolTable;
+	
+	txID keyholeCount;
+	txSlot* keyholeList;
 
-	txID* colors;
 	txSlot** keyArray;
 	txID keyCount;
 	txID keyDelta;
@@ -415,9 +421,12 @@ struct sxMachine {
 	txID keyOffset;
 	txSlot** keyArrayHost;
 
+#if mxAliasInstance
 	txID aliasCount;
 	txID aliasIndex;
 	txSlot** aliasArray;
+	txID* colors;
+#endif
 	
 	char* stackLimit;
 	
@@ -576,7 +585,7 @@ mxExport txSlot* fxToClosure(txMachine* the, txSlot* theSlot);
 mxExport void fxReference(txMachine* the, txSlot* theSlot, txSlot* theReference);
 mxExport txSlot* fxToReference(txMachine* the, txSlot* theSlot);
 
-mxExport txSlot* fxNewArray(txMachine*, txInteger);
+mxExport txSlot* fxNewArray(txMachine*, txIndex);
 mxExport txSlot* fxNewObject(txMachine*);
 mxExport txBoolean fxIsInstanceOf(txMachine*);
 mxExport void fxArrayCacheBegin(txMachine*, txSlot*);
@@ -652,9 +661,11 @@ mxExport void fxDebugger(txMachine* the, txString thePath, txInteger theLine);
 mxExport const txByte gxNoCode[] ICACHE_FLASH_ATTR;
 mxExport txMachine* fxCreateMachine(txCreation* theCreation, txString theName, void* theContext, txID profileID);
 mxExport void fxDeleteMachine(txMachine*);
+#if mxAliasInstance
 mxExport txMachine* fxCloneMachine(txCreation* theCreation, txMachine* theMachine, txString theName, void* theContext);
 mxExport txMachine* fxPrepareMachine(txCreation* creation, txPreparation* preparation, txString name, void* context, void* archive);
 mxExport void fxShareMachine(txMachine* the);
+#endif
 
 mxExport txMachine* fxBeginHost(txMachine*);
 mxExport void fxEndHost(txMachine*);
@@ -782,6 +793,7 @@ extern void fxCheckCStack(txMachine* the);
 extern void fxAllocate(txMachine* the, txCreation* theCreation);
 extern void fxCollect(txMachine* the, txFlag theFlag);
 mxExport txSlot* fxDuplicateSlot(txMachine* the, txSlot* theSlot);
+extern txSlot* fxFindKey(txMachine* the);
 extern void fxFree(txMachine* the);
 extern void fxGrowKeys(txMachine* the, txID theCount);
 extern txSize fxMultiplyChunkSizes(txMachine* the, txSize a, txSize b);
@@ -789,7 +801,9 @@ mxExport void* fxNewChunk(txMachine* the, txSize theSize);
 mxExport void* fxNewGrowableChunk(txMachine* the, txSize size, txSize overflow);
 extern txSlot* fxNewSlot(txMachine* the);
 mxExport void* fxRenewChunk(txMachine* the, void* theData, txSize theSize);
+#if mxAliasInstance
 extern void fxShare(txMachine* the);
+#endif
 
 /* xsDebug.c */
 #ifdef mxDebug
@@ -823,7 +837,9 @@ extern void fxSuspendProfiler(txMachine* the);
 
 /* xsType.c */
 
+#if mxAliasInstance
 extern txSlot* fxAliasInstance(txMachine* the, txSlot* instance);
+#endif
 extern txSlot* fxDuplicateInstance(txMachine* the, txSlot* instance);
 extern txSlot* fxGetInstance(txMachine* the, txSlot* theSlot);
 extern txSlot* fxGetPrototype(txMachine* the, txSlot* instance);
@@ -1018,12 +1034,14 @@ extern txSlot* fxNewSymbolInstance(txMachine* the);
 extern void fxSymbolToString(txMachine* the, txSlot* slot);
 extern txSlot* fxGetKey(txMachine* the, txID theID);
 extern char* fxGetKeyName(txMachine* the, txID theID);
+extern char* fxGetKeyString(txMachine* the, txID theID, txBoolean* adorn);
 extern txID fxFindName(txMachine* the, txString theString);
 extern txBoolean fxIsKeyName(txMachine* the, txID theID);
 extern txBoolean fxIsKeySymbol(txMachine* the, txID theID);
 extern txID fxNewName(txMachine* the, txSlot* theSlot);
 extern txID fxNewNameC(txMachine* the, txString theString);
 extern txID fxNewNameX(txMachine* the, txString theString);
+extern void fxPushKeyString(txMachine* the, txID theID, txBoolean* adorn);
 extern txSlot* fxAt(txMachine* the, txSlot* slot);
 extern void fxKeyAt(txMachine* the, txID id, txIndex index, txSlot* slot);
 extern void fxIDToString(txMachine* the, txID id, txString theBuffer, txSize theSize);
@@ -1035,6 +1053,7 @@ mxExport void fx_AggregateError(txMachine* the);
 mxExport void fx_EvalError(txMachine* the);
 mxExport void fx_RangeError(txMachine* the);
 mxExport void fx_ReferenceError(txMachine* the);
+mxExport void fx_SuppressedError(txMachine* the);
 mxExport void fx_SyntaxError(txMachine* the);
 mxExport void fx_TypeError(txMachine* the);
 mxExport void fx_URIError(txMachine* the);
@@ -1042,6 +1061,16 @@ mxExport void fx_Error_prototype_get_stack(txMachine* the);
 
 extern void fxBuildError(txMachine* the);
 extern void fxCaptureErrorStack(txMachine* the, txSlot* internal, txSlot* frame);
+
+#if mxExplicitResourceManagement
+mxExport void fx_DisposableStack(txMachine* the);
+mxExport void fx_DisposableStack_prototype_get_disposed(txMachine* the);
+mxExport void fx_DisposableStack_prototype_adopt(txMachine* the);
+mxExport void fx_DisposableStack_prototype_defer(txMachine* the);
+mxExport void fx_DisposableStack_prototype_dispose(txMachine* the);
+mxExport void fx_DisposableStack_prototype_move(txMachine* the);
+mxExport void fx_DisposableStack_prototype_use(txMachine* the);
+#endif
 
 /* xsNumber.c */
 mxExport void fx_isFinite(txMachine* the);
@@ -1372,19 +1401,25 @@ mxExport void fx_Array_prototype_some(txMachine* the);
 mxExport void fx_Array_prototype_sort(txMachine* the);
 mxExport void fx_Array_prototype_splice(txMachine* the);
 mxExport void fx_Array_prototype_toLocaleString(txMachine* the);
+mxExport void fx_Array_prototype_toReversed(txMachine* the);
+mxExport void fx_Array_prototype_toSorted(txMachine* the);
+mxExport void fx_Array_prototype_toSpliced(txMachine* the);
 mxExport void fx_Array_prototype_toString(txMachine* the);
 mxExport void fx_Array_prototype_unshift(txMachine* the);
 mxExport void fx_Array_prototype_values(txMachine* the);
+mxExport void fx_Array_prototype_with(txMachine* the);
 mxExport void fx_ArrayIterator_prototype_next(txMachine* the);
 
 extern txNumber fxArgToIndex(txMachine* the, txInteger argi, txNumber index, txNumber length);
 extern txNumber fxArgToLastIndex(txMachine* the, txInteger argi, txNumber index, txNumber length);
 extern txNumber fxArgToRange(txMachine* the, txInteger argi, txNumber index, txNumber min, txNumber max);
+extern txNumber fxArgToRelativeIndex(txMachine* the, txInteger argi, txNumber index, txNumber length);
 extern void fxCacheArray(txMachine* the, txSlot* theArray);
 extern void fxConstructArrayEntry(txMachine* the, txSlot* entry);
+extern void fxIndexArray(txMachine* the, txSlot* array);
 extern txBoolean fxIsArray(txMachine* the, txSlot* instance);
 extern txSlot* fxNewArrayInstance(txMachine* the);
-extern void fxSortArrayItems(txMachine* the, txSlot* function, txSlot* array, txNumber LENGTH);
+extern void fxSortArrayItems(txMachine* the, txSlot* function, txSlot* array, txNumber LENGTH, txSlot* target);
 extern txNumber fxToLength(txMachine* the, txSlot* slot);
 
 /* xsDataView.c */
@@ -1442,6 +1477,7 @@ mxExport void fx_ArrayBuffer_fromString(txMachine* the);
 #endif
 mxExport void fx_ArrayBuffer_isView(txMachine* the);
 mxExport void fx_ArrayBuffer_prototype_get_byteLength(txMachine* the);
+mxExport void fx_ArrayBuffer_prototype_get_detached(txMachine* the);
 mxExport void fx_ArrayBuffer_prototype_get_maxByteLength(txMachine* the);
 mxExport void fx_ArrayBuffer_prototype_get_resizable(txMachine* the);
 mxExport void fx_ArrayBuffer_prototype_concat(txMachine* the);
@@ -1513,8 +1549,11 @@ mxExport void fx_TypedArray_prototype_some(txMachine* the);
 mxExport void fx_TypedArray_prototype_sort(txMachine* the);
 mxExport void fx_TypedArray_prototype_subarray(txMachine* the);
 mxExport void fx_TypedArray_prototype_toLocaleString(txMachine* the);
+mxExport void fx_TypedArray_prototype_toReversed(txMachine* the);
+mxExport void fx_TypedArray_prototype_toSorted(txMachine* the);
 mxExport void fx_TypedArray_prototype_toStringTag_get(txMachine* the);
 mxExport void fx_TypedArray_prototype_values(txMachine* the);
+mxExport void fx_TypedArray_prototype_with(txMachine* the);
 
 extern void fxBuildDataView(txMachine* the);
 extern void fxConstructArrayBufferResult(txMachine* the, txSlot* constructor, txInteger length);
@@ -1831,6 +1870,7 @@ enum {
 	XS_TYPE_ERROR,
 	XS_URI_ERROR,
 	XS_AGGREGATE_ERROR,
+	XS_SUPPRESSED_ERROR,
 	XS_ERROR_COUNT
 };
 
@@ -1994,6 +2034,7 @@ enum {
 	XS_BUFFER_INFO_KIND,
 	XS_MODULE_SOURCE_KIND,
 	XS_IDS_KIND,
+	XS_DISPOSABLE_STACK_KIND,
 };
 enum {
 	XS_DEBUGGER_EXIT = 0,
@@ -2450,6 +2491,7 @@ enum {
 	mxTypeErrorPrototypeStackIndex,
 	mxURIErrorPrototypeStackIndex,
 	mxAggregateErrorPrototypeStackIndex,
+	mxSuppressedErrorPrototypeStackIndex,
 	
 	mxSymbolPrototypeStackIndex,
 	mxArrayBufferPrototypeStackIndex,
@@ -2467,6 +2509,7 @@ enum {
 	mxModuleSourcePrototypeStackIndex,
 	mxWeakRefPrototypeStackIndex,
 	mxFinalizationRegistryPrototypeStackIndex,
+	mxDisposableStackPrototypeStackIndex,
 
 	mxEnumeratorFunctionStackIndex,
 	mxAssignObjectFunctionStackIndex,
@@ -2551,6 +2594,7 @@ enum {
 #define mxCompartmentConstructor the->stackPrototypes[-1 - _Compartment]
 #define mxDataViewConstructor the->stackPrototypes[-1 - _DataView]
 #define mxDateConstructor the->stackPrototypes[-1 - _Date]
+#define mxDisposableStackConstructor the->stackPrototypes[-1 - _DisposableStack]
 #define mxErrorConstructor the->stackPrototypes[-1 - _Error]
 #define mxEvalErrorConstructor the->stackPrototypes[-1 - _EvalError]
 #define mxFinalizationRegistryConstructor the->stackPrototypes[-1 - _FinalizationRegistry]
@@ -2577,6 +2621,7 @@ enum {
 #define mxSharedArrayBufferConstructor the->stackPrototypes[-1 - _SharedArrayBuffer]
 #define mxModuleSourceConstructor the->stackPrototypes[-1 - _ModuleSource]
 #define mxStringConstructor the->stackPrototypes[-1 - _String]
+#define mxSuppressedErrorConstructor the->stackPrototypes[-1 - _SuppressedError]
 #define mxSymbolConstructor the->stackPrototypes[-1 - _Symbol]
 #define mxSyntaxErrorConstructor the->stackPrototypes[-1 - _SyntaxError]
 #define mxTypeErrorConstructor the->stackPrototypes[-1 - _TypeError]
@@ -2622,6 +2667,7 @@ enum {
 #define mxTypeErrorPrototype the->stackPrototypes[-1 - mxTypeErrorPrototypeStackIndex]
 #define mxURIErrorPrototype the->stackPrototypes[-1 - mxURIErrorPrototypeStackIndex]
 #define mxAggregateErrorPrototype the->stackPrototypes[-1 - mxAggregateErrorPrototypeStackIndex]
+#define mxSuppressedErrorPrototype the->stackPrototypes[-1 - mxSuppressedErrorPrototypeStackIndex]
 
 #define mxSymbolPrototype the->stackPrototypes[-1 - mxSymbolPrototypeStackIndex]
 #define mxArrayBufferPrototype the->stackPrototypes[-1 - mxArrayBufferPrototypeStackIndex]
@@ -2639,6 +2685,7 @@ enum {
 #define mxModuleSourcePrototype the->stackPrototypes[-1 - mxModuleSourcePrototypeStackIndex]
 #define mxWeakRefPrototype the->stackPrototypes[-1 - mxWeakRefPrototypeStackIndex]
 #define mxFinalizationRegistryPrototype the->stackPrototypes[-1 - mxFinalizationRegistryPrototypeStackIndex]
+#define mxDisposableStackPrototype the->stackPrototypes[-1 - mxDisposableStackPrototypeStackIndex]
 
 #define mxEmptyCode the->stackPrototypes[-1 - mxEmptyCodeStackIndex]
 #define mxEmptyString the->stackPrototypes[-1 - mxEmptyStringStackIndex]
