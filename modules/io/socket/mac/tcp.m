@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023  Moddable Tech, Inc.
+ * Copyright (c) 2022-2025  Moddable Tech, Inc.
  *
  *   This file is part of the Moddable SDK Runtime.
  * 
@@ -80,7 +80,6 @@ static void tcpHold(TCP tcp);
 static void tcpRelease(TCP tcp);
 static void xs_tcp_mark(xsMachine* the, void* it, xsMarkRoot markRoot);
 static void doClose(xsMachine *the, xsSlot *instance);
-static void resolved(CFHostRef cfHost, CFHostInfoType typeInfo, const CFStreamError *error, void *info);
 static void socketCallback(CFSocketRef s, CFSocketCallBackType cbType, CFDataRef addr, const void *data, void *info);
 static void tcpTrigger(TCP tcp, uint8_t trigger);
 
@@ -170,10 +169,12 @@ void xs_tcp_constructor(xsMachine *the)
 			char addrStr[32];
 
 			xsmcGet(xsVar(0), xsArg(0), xsID_address);
+			if (xsUndefinedType == xsmcTypeOf(xsVar(0)))
+				xsUnknownError("invalid address");
 			xsmcToStringBuffer(xsVar(0), addrStr, sizeof(addrStr));
 
 			xsmcGet(xsVar(0), xsArg(0), xsID_port);
-			port = xsmcToInteger(xsVar(0));
+			port = builtinGetSignedInteger(the, &xsVar(0)); 
 			if ((port < 0) || (port > 65535))
 				xsRangeError("invalid port");
 
@@ -199,25 +200,15 @@ void xs_tcp_constructor(xsMachine *the)
 			tcp->cfRunLoopSource = CFSocketCreateRunLoopSource(NULL, tcp->cfSkt, 0);
 			CFRunLoopAddSource(CFRunLoopGetCurrent(), tcp->cfRunLoopSource, kCFRunLoopCommonModes);
 
-			char *str;
-			CFStringRef host;
-			CFHostRef cfHost;
+			struct hostent *host = gethostbyname(addrStr);
+			struct sockaddr_in address;
+			c_memcpy(&(address.sin_addr), host->h_addr, host->h_length);
+			address.sin_family = AF_INET;
+			address.sin_port = htons(port);
 
-			xsmcGet(xsVar(0), xsArg(0), xsID_address);
-			str = xsmcToString(xsVar(0));
-			host = CFStringCreateWithCString(NULL, (const char *)str, kCFStringEncodingUTF8);
-			cfHost = CFHostCreateWithName(kCFAllocatorDefault, host);
-			CFRelease(host);
-
-			CFHostClientContext context = {0};
-			context.info = tcp;
-
-			CFHostSetClient(cfHost, resolved, &context);
-			CFHostScheduleWithRunLoop(cfHost, CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
-
-			CFStreamError streamErr;
-			if (!CFHostStartInfoResolution(cfHost, kCFHostAddresses, &streamErr))
-				xsUnknownError("cannot resolve host address");
+			CFSocketError err = CFSocketConnectToAddress(tcp->cfSkt, CFDataCreate(kCFAllocatorDefault, (const UInt8*)&address, sizeof(address)), (CFTimeInterval)-1);
+			if (err)
+				xsUnknownError("can't connect");
 		}
 	}
 
@@ -295,6 +286,11 @@ void doClose(xsMachine *the, xsSlot *instance)
 
 		if (tcp->cfSkt)
 			CFSocketDisableCallBacks(tcp->cfSkt, kCFSocketReadCallBack | kCFSocketWriteCallBack | kCFSocketConnectCallBack);
+
+		if (tcp->cfTriggeredTimer) {
+			CFRunLoopTimerInvalidate(tcp->cfTriggeredTimer);
+			tcp->cfTriggeredTimer = NULL;
+		}
 
 		xsmcSetHostData(*instance, NULL);
 		xsForget(tcp->obj);
@@ -392,11 +388,14 @@ void xs_tcp_write(xsMachine *the)
 	}
 
 	modInstrumentationAdjust(NetworkBytesWritten, needed);
+
+	xsmcSetInteger(xsResult, tcp->bytesWritable);
 }
 
 void xs_tcp_get_remoteAddress(xsMachine *the)
 {
 	TCP tcp = xsmcGetHostDataValidate(xsThis, (void *)&xsTCPHooks);
+	if (!tcp->cfSkt) return;
 	CFDataRef address = CFSocketCopyPeerAddress(tcp->cfSkt);
 	const UInt8 *bytes = CFDataGetBytePtr((__bridge CFDataRef)address);
 	struct sockaddr_in addr = *(struct sockaddr_in *)bytes;
@@ -408,22 +407,25 @@ void xs_tcp_get_remoteAddress(xsMachine *the)
 void xs_tcp_get_remotePort(xsMachine *the)
 {
 	TCP tcp = xsmcGetHostDataValidate(xsThis, (void *)&xsTCPHooks);
+	if (!tcp->cfSkt) return;
 	CFDataRef address = CFSocketCopyPeerAddress(tcp->cfSkt);
 	const UInt8 *bytes = CFDataGetBytePtr((__bridge CFDataRef)address);
 	struct sockaddr_in addr = *(struct sockaddr_in *)bytes;
 
-	xsmcSetInteger(xsResult, htons(addr.sin_port));
+	xsmcSetInteger(xsResult, ntohs(addr.sin_port));
 }
 
 void xs_tcp_get_format(xsMachine *the)
 {
 	TCP tcp = xsmcGetHostDataValidate(xsThis, (void *)&xsTCPHooks);
+	if (!tcp->cfSkt) return;
 	builtinGetFormat(the, tcp->format);
 }
 
 void xs_tcp_set_format(xsMachine *the)
 {
 	TCP tcp = xsmcGetHostDataValidate(xsThis, (void *)&xsTCPHooks);
+	if (!tcp->cfSkt) return;
 	uint8_t format = builtinSetFormat(the);
 	if ((kIOFormatNumber != format) && (kIOFormatBuffer != format))
 		xsRangeError("unimplemented");
@@ -454,33 +456,6 @@ void xs_tcp_mark(xsMachine* the, void* it, xsMarkRoot markRoot)
 		(*markRoot)(the, tcp->onError);
 }
 
-void resolved(CFHostRef cfHost, CFHostInfoType typeInfo, const CFStreamError *error, void *info)
-{
-	TCP tcp = info;
-
-	if (tcp->done) {
-		tcpRelease(tcp);
-		return;
-	}
-
-	CFArrayRef cfArray = CFHostGetAddressing(cfHost, NULL);
-	if (NULL == cfArray) {	// failed to resolve
-		tcpTrigger(tcp, kTCPError);
-		return;
-	}
-	NSData *address = CFArrayGetValueAtIndex(cfArray, CFArrayGetCount(cfArray) - 1);
-
-	const UInt8 *bytes = CFDataGetBytePtr((__bridge CFDataRef)address);
-	struct sockaddr_in addr = *(struct sockaddr_in *)bytes;
-	addr.sin_port = htons(tcp->port);
-
-	CFSocketError err = CFSocketConnectToAddress(tcp->cfSkt, CFDataCreate(kCFAllocatorDefault, (const UInt8*)&addr, sizeof(addr)), (CFTimeInterval)-1);
-	if (err) {
-		tcpTrigger(tcp, kTCPError);
-		return;
-	}
-}
-
 void socketCallback(CFSocketRef s, CFSocketCallBackType cbType, CFDataRef addr, const void *data, void *info)
 {
 	TCP tcp = *(TCP *)info;
@@ -508,8 +483,7 @@ void socketCallback(CFSocketRef s, CFSocketCallBackType cbType, CFDataRef addr, 
 		int bytesRead = read(tcp->skt, tcp->readBuf + tcp->bytesReadable, kBufferSize - tcp->bytesReadable);
 		if (bytesRead > 0) {
 			tcp->bytesReadable += bytesRead;
-			if (bytesRead)
-				tcpTrigger(tcp, kTCPReadable);
+			tcpTrigger(tcp, kTCPReadable);
 		}
 		else {		// bytes read 0 indicates connection closed
 			tcp->error = 1;
@@ -538,7 +512,7 @@ static void reportTrigger(CFRunLoopTimerRef cfTimer, void *info)
 {
 	TCP tcp = info;
 	xsMachine *the = tcp->the;
-	uint8_t triggered = tcp->triggered;
+	uint8_t triggered = tcp->triggered & tcp->triggerable;
 
 	tcp->triggered = 0;
 	if (tcp->cfTriggeredTimer) {
@@ -634,14 +608,16 @@ static const xsHostHooks xsListenerHooks = {
 void xs_listener_constructor(xsMachine *the)
 {
 	Listener listener;
-	uint16_t port = 0;
+	int port = 0;
 	xsSlot *onReadable;
 
 	xsmcVars(1);
 
 	if (xsmcHas(xsArg(0), xsID_port)) {
 		xsmcGet(xsVar(0), xsArg(0), xsID_port);
-		port = (uint16_t)xsmcToInteger(xsVar(0));
+		port = builtinGetSignedInteger(the, &xsVar(0)); 
+		if ((port < 0) || (port > 65535))
+			xsRangeError("invalid port");
 	}
 
 	onReadable = builtinGetCallback(the, xsID_onReadable);
@@ -734,6 +710,7 @@ void xs_listener_close_(xsMachine *the)
 		xsForget(listener->obj);
 		xs_listener_destructor_(listener);
 		xsmcSetHostData(xsThis, NULL);
+		xsmcSetHostDestructor(xsThis, NULL);
 	}
 }
 
@@ -760,6 +737,17 @@ void xs_listener_read(xsMachine *the)
 
 	tcp->cfRunLoopSource = CFSocketCreateRunLoopSource(NULL, tcp->cfSkt, 0);
 	CFRunLoopAddSource(CFRunLoopGetCurrent(), tcp->cfRunLoopSource, kCFRunLoopCommonModes);
+}
+
+void xs_listener_get_port(xsMachine *the)
+{
+	Listener listener = xsmcGetHostDataValidate(xsThis, (void *)&xsListenerHooks);
+	if (!listener->cfSkt) return;
+	CFDataRef address = CFSocketCopyAddress(listener->cfSkt);
+	const UInt8 *bytes = CFDataGetBytePtr((__bridge CFDataRef)address);
+	struct sockaddr_in addr = *(struct sockaddr_in *)bytes;
+
+	xsmcSetInteger(xsResult, ntohs(addr.sin_port));
 }
 
 void xs_listener_mark(xsMachine* the, void* it, xsMarkRoot markRoot)

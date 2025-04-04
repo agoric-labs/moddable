@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2022  Moddable Tech, Inc.
+ * Copyright (c) 2019-2023  Moddable Tech, Inc.
  *
  *   This file is part of the Moddable SDK Runtime.
  *
@@ -37,6 +37,9 @@
 
 typedef struct SerialRecord SerialRecord;
 typedef struct SerialRecord *Serial;
+
+extern int modMessagePostToMachineFromISR(xsMachine *the, modMessageDeliver callback, void *refcon);
+
 
 #define FIFO_SIZE	128	// 1024
 
@@ -146,7 +149,7 @@ void xs_serial_constructor(xsMachine *the)
 
 	builtinInitializeTarget(the);
 
-	format = builtinInitializeFormat(the, kIOFormatNumber);
+	format = builtinInitializeFormat(the, kIOFormatBuffer);
 	if ((kIOFormatNumber != format) && (kIOFormatBuffer != format))
 		xsRangeError("invalid format");
 
@@ -334,7 +337,7 @@ void xs_serial_write(xsMachine *the)
 		uint8_t *buffer;
 		xsUnsignedValue requested;
 
-		xsmcGetBufferReadable(xsArg(0), &buffer, &requested);
+		xsmcGetBufferReadable(xsArg(0), (void**)&buffer, &requested);
 		if (requested > count)
 			xsUnknownError("output full");
 

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2016-2022  Moddable Tech, Inc.
+# Copyright (c) 2016-2024  Moddable Tech, Inc.
 #
 #   This file is part of the Moddable SDK Tools.
 # 
@@ -41,32 +41,22 @@ SRC_DIR = $(XS_DIR)/sources
 TLS_DIR = $(XS_DIR)/tools
 TMP_DIR = $(BUILD_DIR)/tmp/lin/$(GOAL)/$(NAME)
 
-MACOS_ARCH ?= -arch i386
-MACOS_VERSION_MIN ?= -mmacosx-version-min=10.7
+ARCH := $(shell uname -m)
 LINK_OPTIONS = -rdynamic
 
 C_OPTIONS = \
 	-fno-common \
 	-DINCLUDE_XSPLATFORM \
 	-DXSPLATFORM=\"xst.h\" \
-	-DmxAliasInstance=0 \
 	-DmxDebug=1 \
-	-DmxExplicitResourceManagement=1 \
-	-DmxKeysGarbageCollection=1 \
-	-DmxLockdown=1 \
 	-DmxNoConsole=1 \
-	-DmxParse=1 \
 	-DmxProfile=1 \
-	-DmxRun=1 \
-	-DmxSloppy=1 \
-	-DmxSnapshot=1 \
-	-DmxRegExpUnicodePropertyEscapes=1 \
-	-DmxStringNormalize=1 \
-	-DmxMinusZero=1 \
+	-DmxStringInfoCacheLength=4 \
 	-I$(INC_DIR) \
 	-I$(PLT_DIR) \
 	-I$(SRC_DIR) \
 	-I$(TLS_DIR) \
+	-I$(TLS_DIR)/fdlibm \
 	-I$(TLS_DIR)/yaml \
 	-I$(TMP_DIR)
 C_OPTIONS += \
@@ -79,7 +69,7 @@ ifeq ($(GOAL),debug)
 		C_OPTIONS += -DFUZZING=1
 	endif
 	ifneq ($(OSSFUZZ),0)
-		C_OPTIONS += -DOSSFUZZ=1 -DmxMetering=1
+		C_OPTIONS += -DOSSFUZZ=1 -DmxMetering=1 -DmxXSMemoryLimit=0x40000000
 		ifneq ($(FUZZ_METER),0)
 			C_OPTIONS += -DmxFuzzMeter=$(FUZZ_METER)
 		endif
@@ -90,8 +80,26 @@ ifeq ($(GOAL),debug)
 		endif
 	else
 		C_OPTIONS += -g -O0 -Wall -Wextra -Wno-missing-field-initializers -Wno-unused-parameter 
-		LINK_OPTIONS += -fsanitize=address -fno-omit-frame-pointer
-		C_OPTIONS += -fsanitize=address -fno-omit-frame-pointer
+		# use asan by default, unless another sanitizer is
+		# requested via sanitizer
+		ifeq ($(SANITIZER), memory)
+			C_OPTIONS += -fsanitize=memory -fsanitize-memory-track-origins
+			LINK_OPTIONS += -fsanitize=memory
+		else ifeq ($(SANITIZER), undefined)
+			C_OPTIONS += -fsanitize=bool,builtin,enum,float-divide-by-zero,integer-divide-by-zero,null,object-size,return,returns-nonnull-attribute,shift,signed-integer-overflow,unreachable,vla-bound,vptr -fno-sanitize-recover=bool,builtin,enum,float-divide-by-zero,integer-divide-by-zero,null,object-size,return,returns-nonnull-attribute,shift,signed-integer-overflow,unreachable,vla-bound,vptr
+			LINK_OPTIONS += -fsanitize=bool,builtin,enum,float-divide-by-zero,integer-divide-by-zero,null,object-size,return,returns-nonnull-attribute,shift,signed-integer-overflow,unreachable,vla-bound,vptr -fno-sanitize-recover=bool,builtin,enum,float-divide-by-zero,integer-divide-by-zero,null,object-size,return,returns-nonnull-attribute,shift,signed-integer-overflow,unreachable,vla-bound,vptr
+
+			# function and other ubsan checks not available in some arch, such as arm
+			ifneq ($(ARCH), aarch64)
+				C_OPTIONS += -fsanitize=array-bounds,function,unsigned-integer-overflow
+				LINK_OPTIONS += -fsanitize=array-bounds,function,unsigned-integer-overflow
+			endif
+		else
+			C_OPTIONS += -fsanitize=address
+			LINK_OPTIONS += -fsanitize=address
+		endif
+		C_OPTIONS += -fno-omit-frame-pointer
+		LINK_OPTIONS += -fno-omit-frame-pointer
 	endif
 
 	ifneq ($(FUZZILLI),0)
@@ -163,9 +171,38 @@ OBJECTS = \
 	$(TMP_DIR)/textdecoder.o \
 	$(TMP_DIR)/textencoder.o \
 	$(TMP_DIR)/modBase64.o \
-	$(TMP_DIR)/xst.o
+	$(TMP_DIR)/xst.o \
+	$(TMP_DIR)/xst262.o \
+	$(TMP_DIR)/xstFuzz.o \
+	$(TMP_DIR)/e_acos.o \
+	$(TMP_DIR)/e_acosh.o \
+	$(TMP_DIR)/e_asin.o \
+	$(TMP_DIR)/e_atan2.o \
+	$(TMP_DIR)/e_atanh.o \
+	$(TMP_DIR)/e_cosh.o \
+	$(TMP_DIR)/e_exp.o \
+	$(TMP_DIR)/e_hypot.o \
+	$(TMP_DIR)/e_log.o \
+	$(TMP_DIR)/e_log10.o \
+	$(TMP_DIR)/e_pow.o \
+	$(TMP_DIR)/e_rem_pio2.o \
+	$(TMP_DIR)/e_sinh.o \
+	$(TMP_DIR)/k_cos.o \
+	$(TMP_DIR)/k_exp.o \
+	$(TMP_DIR)/k_rem_pio2.o \
+	$(TMP_DIR)/k_sin.o \
+	$(TMP_DIR)/k_tan.o \
+	$(TMP_DIR)/s_asinh.o \
+	$(TMP_DIR)/s_atan.o \
+	$(TMP_DIR)/s_cos.o \
+	$(TMP_DIR)/s_expm1.o \
+	$(TMP_DIR)/s_log1p.o \
+	$(TMP_DIR)/s_scalbn.o \
+	$(TMP_DIR)/s_sin.o \
+	$(TMP_DIR)/s_tan.o \
+	$(TMP_DIR)/s_tanh.o
 
-VPATH += $(SRC_DIR) $(TLS_DIR) $(TLS_DIR)/yaml
+VPATH += $(SRC_DIR) $(TLS_DIR) $(TLS_DIR)/fdlibm $(TLS_DIR)/yaml
 VPATH += $(MODDABLE)/modules/data/text/decoder
 VPATH += $(MODDABLE)/modules/data/text/encoder
 VPATH += $(MODDABLE)/modules/data/base64
@@ -192,6 +229,7 @@ $(OBJECTS): $(PLT_DIR)/xsPlatform.h
 $(OBJECTS): $(SRC_DIR)/xsCommon.h
 $(OBJECTS): $(SRC_DIR)/xsAll.h
 $(OBJECTS): $(SRC_DIR)/xsScript.h
+$(OBJECTS): $(TLS_DIR)/fdlibm/math_private.h
 $(TMP_DIR)/%.o: %.c
 	@echo "#" $(NAME) $(GOAL) ": cc" $(<F)
 	@echo $(CC) $< $(C_OPTIONS) -c -o $@

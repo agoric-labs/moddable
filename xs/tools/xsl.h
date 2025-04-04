@@ -67,7 +67,6 @@ typedef struct {
 
 struct sxLinker {
 	c_jmp_buf jmp_buf;
-	void* dtoa;
 	int error;
 	int twice;
 	txLinkerChunk* firstChunk;
@@ -212,6 +211,9 @@ struct sxLinkerSymbol {
 /* xslBase.c */
 extern void fx_BigInt64Array(txMachine* the);
 extern void fx_BigUint64Array(txMachine* the);
+#if mxFloat16
+extern void fx_Float16Array(txMachine* the);
+#endif
 extern void fx_Float32Array(txMachine* the);
 extern void fx_Float64Array(txMachine* the);
 extern void fx_Int8Array(txMachine* the);
@@ -242,7 +244,7 @@ extern txLinkerResource* fxNewLinkerResource(txLinker* linker, txString path, FI
 extern txLinkerScript* fxNewLinkerScript(txLinker* linker, txString path, FILE** fileAddress);
 extern txString fxNewLinkerString(txLinker* linker, txString buffer, txSize size);
 extern txLinkerStrip* fxNewLinkerStrip(txLinker* linker, txString name);
-extern txLinkerSymbol* fxNewLinkerSymbol(txLinker* linker, txString theString, txFlag flag);
+extern txLinkerSymbol* fxNewLinkerSymbol(txLinker* linker, txString theString, txFlag flag, txBoolean table);
 extern void fxReadSymbols(txLinker* linker, txString path, txFlag flag, FILE** fileAddress);
 extern txString fxRealDirectoryPath(txLinker* linker, txString path);
 extern txString fxRealFilePath(txLinker* linker, txString path);

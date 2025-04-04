@@ -151,11 +151,7 @@
 #endif /* !INCLUDE_XSPLATFORM */
 
 #ifndef mxBoundsCheck
-	#ifdef mxDebug
-		#define mxBoundsCheck 1
-	#else
-		#define mxBoundsCheck 0
-	#endif
+	#define mxBoundsCheck 1
 #endif
 #ifndef NULL
 	#define NULL 0
@@ -319,35 +315,33 @@ typedef txU4 xsUnsignedValue;
 
 /* Instances and Prototypes */
 
-#define prototypesStackIndex -79
-#define xsObjectPrototype (the->stackPrototypes[prototypesStackIndex - 1])
-#define xsFunctionPrototype (the->stackPrototypes[prototypesStackIndex - 2])
-#define xsArrayPrototype (the->stackPrototypes[prototypesStackIndex - 3])
-#define xsStringPrototype (the->stackPrototypes[prototypesStackIndex - 4])
-#define xsBooleanPrototype (the->stackPrototypes[prototypesStackIndex - 5])
-#define xsNumberPrototype (the->stackPrototypes[prototypesStackIndex - 6])
-#define xsDatePrototype (the->stackPrototypes[prototypesStackIndex - 7])
-#define xsRegExpPrototype (the->stackPrototypes[prototypesStackIndex - 8])
-#define xsHostPrototype (the->stackPrototypes[prototypesStackIndex - 9])
-#define xsErrorPrototype (the->stackPrototypes[prototypesStackIndex - 10])
-#define xsEvalErrorPrototype (the->stackPrototypes[prototypesStackIndex - 11])
-#define xsRangeErrorPrototype (the->stackPrototypes[prototypesStackIndex - 12])
-#define xsReferenceErrorPrototype (the->stackPrototypes[prototypesStackIndex - 13])
-#define xsSyntaxErrorPrototype (the->stackPrototypes[prototypesStackIndex - 14])
-#define xsTypeErrorPrototype (the->stackPrototypes[prototypesStackIndex - 15])
-#define xsURIErrorPrototype (the->stackPrototypes[prototypesStackIndex - 16])
-#define xsAggregateErrorPrototype (the->stackPrototypes[prototypesStackIndex - 17])
-#define xsSuppressedErrorPrototype (the->stackPrototypes[prototypesStackIndex - 18])
-#define xsSymbolPrototype (the->stackPrototypes[prototypesStackIndex - 19])
-#define xsArrayBufferPrototype (the->stackPrototypes[prototypesStackIndex - 20])
-#define xsDataViewPrototype (the->stackPrototypes[prototypesStackIndex - 21])
-#define xsTypedArrayPrototype (the->stackPrototypes[prototypesStackIndex - 22])
-#define xsMapPrototype (the->stackPrototypes[prototypesStackIndex - 23])
-#define xsSetPrototype (the->stackPrototypes[prototypesStackIndex - 24])
-#define xsWeakMapPrototype (the->stackPrototypes[prototypesStackIndex - 25])
-#define xsWeakSetPrototype (the->stackPrototypes[prototypesStackIndex - 26])
-#define xsPromisePrototype (the->stackPrototypes[prototypesStackIndex - 27])
-#define xsProxyPrototype (the->stackPrototypes[prototypesStackIndex - 28])
+#define xsObjectPrototype (the->stackPrototypes[-1])
+#define xsFunctionPrototype (the->stackPrototypes[-2])
+#define xsArrayPrototype (the->stackPrototypes[-3])
+#define xsStringPrototype (the->stackPrototypes[-4])
+#define xsBooleanPrototype (the->stackPrototypes[-5])
+#define xsNumberPrototype (the->stackPrototypes[-6])
+#define xsDatePrototype (the->stackPrototypes[-7])
+#define xsRegExpPrototype (the->stackPrototypes[-8])
+#define xsHostPrototype (the->stackPrototypes[-9])
+#define xsErrorPrototype (the->stackPrototypes[-10])
+#define xsEvalErrorPrototype (the->stackPrototypes[-11])
+#define xsRangeErrorPrototype (the->stackPrototypes[-12])
+#define xsReferenceErrorPrototype (the->stackPrototypes[-13])
+#define xsSyntaxErrorPrototype (the->stackPrototypes[-14])
+#define xsTypeErrorPrototype (the->stackPrototypes[-15])
+#define xsURIErrorPrototype (the->stackPrototypes[-16])
+#define xsAggregateErrorPrototype (the->stackPrototypes[-17])
+#define xsSymbolPrototype (the->stackPrototypes[-18])
+#define xsArrayBufferPrototype (the->stackPrototypes[-19])
+#define xsDataViewPrototype (the->stackPrototypes[-20])
+#define xsTypedArrayPrototype (the->stackPrototypes[-21])
+#define xsMapPrototype (the->stackPrototypes[-22])
+#define xsSetPrototype (the->stackPrototypes[-23])
+#define xsWeakMapPrototype (the->stackPrototypes[-24])
+#define xsWeakSetPrototype (the->stackPrototypes[-25])
+#define xsPromisePrototype (the->stackPrototypes[-26])
+#define xsProxyPrototype (the->stackPrototypes[-27])
 
 #define xsNewArray(_LENGTH) \
 	(fxNewArray(the,_LENGTH), \
@@ -952,6 +946,12 @@ typedef void (*xsDestructor)(void*);
 #define xsGetHostChunk(_SLOT) \
 	(the->scratch = (_SLOT), \
 	fxGetHostChunk(the, &(the->scratch)))
+#define xsGetHostChunkIf(_SLOT) \
+	(the->scratch = (_SLOT), \
+	fxGetHostChunkIf(the, &(the->scratch)))
+#define xsGetHostChunkValidate(_SLOT, validator) \
+	(the->scratch = (_SLOT), \
+	fxGetHostChunkValidate(the, &(the->scratch), validator))	
 #define xsSetHostChunk(_SLOT,_DATA,_SIZE) \
 	(the->scratch = (_SLOT), \
 	fxSetHostChunk(the, &(the->scratch), _DATA, _SIZE))
@@ -959,13 +959,15 @@ typedef void (*xsDestructor)(void*);
 #define xsGetHostData(_SLOT) \
 	(the->scratch = (_SLOT), \
 	fxGetHostData(the, &(the->scratch)))
+#define xsGetHostDataIf(_SLOT) \
+	(the->scratch = (_SLOT), \
+	fxGetHostDataIf(the, &(the->scratch)))
+#define xsGetHostDataValidate(_SLOT, validator) \
+	(the->scratch = (_SLOT), \
+	fxGetHostDataValidate(the, &(the->scratch), validator))	
 #define xsSetHostData(_SLOT,_DATA) \
 	(the->scratch = (_SLOT), \
 	fxSetHostData(the, &(the->scratch), _DATA))
-	
-#define xsGetHostDataValidate(_SLOT, validator) \
-	(the->scratch = (_SLOT), \
-	fxGetHostDataValidate(the, &(the->scratch), validator))
 
 #define xsGetHostDestructor(_SLOT) \
 	(the->scratch = (_SLOT), \
@@ -977,6 +979,16 @@ typedef void (*xsDestructor)(void*);
 #define xsGetHostHandle(_SLOT) \
 	(the->scratch = (_SLOT), \
 	fxGetHostHandle(the, &(the->scratch)))
+
+#define xsGetHostHooks(_SLOT) \
+	(the->scratch = (_SLOT), \
+	fxGetHostHooks(the, &(the->scratch)))
+#define xsGetHostHooksIf(_SLOT) \
+	(the->scratch = (_SLOT), \
+	fxGetHostHooksIf(the, &(the->scratch)))
+#define xsGetHostHooksValidate(_SLOT,_SIGNATURE) \
+	(the->scratch = (_SLOT), \
+	fxGetHostHooksValidate(the, &(the->scratch), _SIGNATURE))
 	
 typedef void (*xsMarkRoot)(xsMachine*, xsSlot*);
 typedef void (*xsMarker)(xsMachine*, void*, xsMarkRoot);
@@ -985,7 +997,7 @@ typedef void (*xsSweeper)(xsMachine*, void*, xsMarkRoot);
 struct xsHostHooksStruct {
 	xsDestructor destructor;
 	xsMarker marker;
-	xsSweeper sweeper;
+	xsStringValue signature;
 };
 	
 #define xsGetHostHooks(_SLOT) \
@@ -1176,11 +1188,13 @@ struct xsMachineRecord {
 	xsByte* code;
 	xsSlot* stackBottom;
 	xsSlot* stackTop;
-	xsSlot* stackPrototypes;
+	xsSlot* stackIntrinsics;
 	xsJump* firstJump;
 	void* context;
 	void* archive;
 	xsSlot scratch;
+	xsSlot* stackPrototypes;
+	int exitStatus;
 #ifndef __XSALL__
 	xsMachinePlatform
 #endif
@@ -1287,6 +1301,38 @@ struct xsCreationRecord {
 	#define xsEndMetering(_THE)
 #endif
 
+#define xsNormalExit (-1)
+
+#define xsBeginHostExit(_THE) \
+	do { \
+		xsMachine* __HOST_THE__ = _THE; \
+		xsJump __HOST_JUMP__; \
+		__HOST_JUMP__.nextJump = (__HOST_THE__)->firstJump; \
+		__HOST_JUMP__.stack = (__HOST_THE__)->stack; \
+		__HOST_JUMP__.scope = (__HOST_THE__)->scope; \
+		__HOST_JUMP__.frame = (__HOST_THE__)->frame; \
+		__HOST_JUMP__.environment = NULL; \
+		__HOST_JUMP__.code = (__HOST_THE__)->code; \
+		__HOST_JUMP__.flag = 0; \
+		(__HOST_THE__)->firstJump = &__HOST_JUMP__; \
+		(__HOST_THE__)->exitStatus = xsNormalExit; \
+		if (setjmp(__HOST_JUMP__.buffer) == 0) { \
+			xsMachine* the = fxBeginHost(__HOST_THE__)
+
+#define xsEndHostExit(_THE) \
+			fxEndHost(the); \
+			the = NULL; \
+		} \
+		else if ((__HOST_THE__)->exitStatus == xsNormalExit) \
+			(__HOST_THE__)->exitStatus = xsUnhandledExceptionExit; \
+		(__HOST_THE__)->stack = __HOST_JUMP__.stack, \
+		(__HOST_THE__)->scope = __HOST_JUMP__.scope, \
+		(__HOST_THE__)->frame = __HOST_JUMP__.frame, \
+		(__HOST_THE__)->code = __HOST_JUMP__.code, \
+		(__HOST_THE__)->firstJump = __HOST_JUMP__.nextJump; \
+		break; \
+	} while(1)
+
 enum {	
 	xsNoID = 0,
 	xsDefault = 0,
@@ -1350,6 +1396,18 @@ typedef unsigned char xsAttribute;
 	fxStringX(the, --the->stack, (xsStringValue)_NAME), \
 	fxAwaitImport(the, _FLAG), \
 	fxPop())
+	
+#define xsImport(_NAME) \
+	(xsOverflow(-1), \
+	fxStringX(the, --the->stack, (xsStringValue)_NAME), \
+	fxImport(the), \
+	fxPop())
+	
+#define xsImportNow(_NAME) \
+	(xsOverflow(-1), \
+	fxStringX(the, --the->stack, (xsStringValue)_NAME), \
+	fxImportNow(the), \
+	fxPop())
 
 enum {
 	xsDebuggerExit = 0,
@@ -1388,6 +1446,10 @@ mxImport xsStringValue fxToStringBuffer(xsMachine*, xsSlot*, xsStringValue, xsIn
 mxImport xsStringValue fxToStringX(xsMachine*, xsSlot*);
 mxImport void fxUnsigned(xsMachine*, xsSlot*, xsUnsignedValue);
 mxImport xsUnsignedValue fxToUnsigned(xsMachine*, xsSlot*);
+mxImport void fxFromBigInt64(xsMachine* the, xsSlot* slot, int64_t value);
+mxImport int64_t fxToBigInt64(xsMachine* the, xsSlot* slot);
+mxImport void fxFromBigUint64(xsMachine* the, xsSlot* slot, uint64_t value);
+mxImport uint64_t fxToBigUint64(xsMachine* the, xsSlot* slot);
 
 mxImport void *fxArrayBuffer(xsMachine*, xsSlot*, void*, xsIntegerValue, xsIntegerValue);
 mxImport void fxGetArrayBufferData(xsMachine*, xsSlot*, xsIntegerValue, void*, xsIntegerValue);
@@ -1410,23 +1472,27 @@ mxImport void fxArrayCacheEnd(xsMachine*, xsSlot*);
 mxImport void fxArrayCacheItem(xsMachine*, xsSlot*, xsSlot*);
 
 mxImport void fxBuildHosts(xsMachine*, xsIntegerValue, xsHostBuilder*);
-mxImport void fxNewHostConstructor(xsMachine*, xsCallback, xsIntegerValue, xsIntegerValue);
-mxImport void fxNewHostFunction(xsMachine*, xsCallback, xsIntegerValue, xsIntegerValue, xsIntegerValue);
-mxImport void fxNewHostInstance(xsMachine*);
+mxImport xsSlot* fxNewHostConstructor(xsMachine*, xsCallback, xsIntegerValue, xsIntegerValue);
+mxImport xsSlot* fxNewHostFunction(xsMachine*, xsCallback, xsIntegerValue, xsIntegerValue, xsIntegerValue);
+mxImport xsSlot* fxNewHostInstance(xsMachine*);
 mxImport xsSlot* fxNewHostObject(xsMachine*, xsDestructor);
 mxImport xsIntegerValue fxGetHostBufferLength(xsMachine*, xsSlot*);
 mxImport void* fxGetHostChunk(xsMachine*, xsSlot*);
+mxImport void* fxGetHostChunkIf(xsMachine*, xsSlot*);
 mxImport void* fxGetHostChunkValidate(xsMachine*, xsSlot*, void*);
 mxImport void *fxSetHostChunk(xsMachine*, xsSlot*, void*, xsIntegerValue);
 mxImport void* fxGetHostData(xsMachine*, xsSlot*);
+mxImport void* fxGetHostDataIf(xsMachine*, xsSlot*);
 mxImport void* fxGetHostDataValidate(xsMachine* the, xsSlot* slot, void*);
+mxImport xsDestructor fxGetHostDestructor(xsMachine*, xsSlot*);
+mxImport void* fxGetHostHandle(xsMachine*, xsSlot*);
+mxImport xsHostHooks* fxGetHostHooks(xsMachine*, xsSlot*);
+mxImport xsHostHooks* fxGetHostHooksIf(xsMachine*, xsSlot*);
+mxImport xsHostHooks* fxGetHostHooksValidate(xsMachine*, xsSlot*, xsStringValue);
 mxImport void fxPetrifyHostBuffer(xsMachine* the, xsSlot* slot);
 mxImport void fxSetHostBuffer(xsMachine*, xsSlot*, void*, xsIntegerValue);
 mxImport void fxSetHostData(xsMachine*, xsSlot*, void*);
-mxImport xsDestructor fxGetHostDestructor(xsMachine*, xsSlot*);
 mxImport void fxSetHostDestructor(xsMachine*, xsSlot*, xsDestructor);
-mxImport void* fxGetHostHandle(xsMachine*, xsSlot*);
-mxImport xsHostHooks* fxGetHostHooks(xsMachine*, xsSlot*);
 mxImport void fxSetHostHooks(xsMachine*, xsSlot*, const xsHostHooks*);
 
 mxImport xsIdentifier fxID(xsMachine*, const char*);
@@ -1495,7 +1561,7 @@ mxImport xsStringValue fxUTF8Decode(xsStringValue string, xsIntegerValue* charac
 mxImport xsStringValue fxUTF8Encode(xsStringValue string, xsIntegerValue character);
 mxImport xsIntegerValue fxUTF8Length(xsIntegerValue character);
 mxImport xsIntegerValue fxUTF8ToUnicodeOffset(xsStringValue theString, xsIntegerValue theOffset);
-mxImport xsIntegerValue fxUnicodeLength(xsStringValue theString);
+mxImport xsIntegerValue fxUnicodeLength(xsStringValue theString, xsIntegerValue* byteLength);
 mxImport xsIntegerValue fxUnicodeToUTF8Offset(xsStringValue theString, xsIntegerValue theOffset);
 
 mxImport xsStringValue fxIntegerToString(xsMachine*, xsIntegerValue, xsStringValue, xsIntegerValue);
@@ -1517,6 +1583,8 @@ mxImport xsIntegerValue fxGetArchiveDataCount(xsMachine*, void*);
 mxImport void* fxGetArchiveDataName(xsMachine*, void*, xsIntegerValue);
 
 mxImport void fxAwaitImport(xsMachine*, xsBooleanValue);
+mxImport void fxImport(xsMachine*);
+mxImport void fxImportNow(xsMachine*);
 
 mxImport xsBooleanValue fxCompileRegExp(xsMachine* the, xsStringValue pattern, xsStringValue modifier, xsIntegerValue** code, xsIntegerValue** data, xsStringValue errorBuffer, xsIntegerValue errorSize);
 mxImport void fxDeleteRegExp(xsMachine* the, xsIntegerValue* code, xsIntegerValue* data);

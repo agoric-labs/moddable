@@ -1,6 +1,6 @@
 # Moddable Two Developer Guide
-Copyright 2019-2022 Moddable Tech, Inc.<BR>
-Revised: March 22, 2022
+Copyright 2019-2024 Moddable Tech, Inc.<BR>
+Revised: April 29, 2024
 
 This document provides information about Moddable Two, including details about its pins and other components, how to build and deploy apps, and links to other development resources.
 
@@ -80,16 +80,16 @@ You can use other SPI sensors even if your app uses the display.
 | GP35     | I/O | Connects to ESP32 GPIO35 |
 | GP27     | I/O | Connects to ESP32 GPIO27 |
 | GP26     | I/O | Connects to ESP32 GPIO26 |
-| VIN      | I/O | VIN is a 5V pin that can be used to power the Moddable Two. If the board is powered by one of the other 5V inputs this pin can be used for external 5V power. This is an unregulated pin; VIN is a direct connection to the 5V input sources. Connects to other 5V inputs and LM1117-3.3 voltage regulator. |
+| VIN      | I/O | VIN is a 5V pin that can be used to power Moddable Two. If the board is powered by one of the other 5V inputs this pin can be used for external 5V power. This is an unregulated pin; VIN is a direct connection to the 5V input sources. Connects to other 5V inputs and LM1117-3.3 voltage regulator. |
 | GP17     | I/O | Connects to ESP32 GPIO17 |
 | GP16     | I/O | Connects to ESP32 GPIO16 |
 | GP0      | I/O | Connects to ESP32 GPIO0 |
 
 #### Power
 
-The Moddable Two is a 3.3V device. 5V power is regulated to 3.3V by a LM1117-3.3 voltage regulator (see data sheet for specs). Testing of Moddable Two has been with typical 5V 0.5amp USB source power.
+Moddable Two is a 3.3V device. 5V power is regulated to 3.3V by a LM1117-3.3 voltage regulator (see data sheet for specs). Testing of Moddable Two has been with typical 5V 0.5amp USB source power.
 
-Power can be supplied to the Moddable Two via the following:
+Power can be supplied to Moddable Two via the following:
 
 * 5V - Micro USB connector
 * 5V - Moddable Programmer connector
@@ -99,7 +99,7 @@ Power can be supplied to the Moddable Two via the following:
 <a id="dimensions"></a>
 ### Dimensions
 
-The complete dimensions of Moddable Two are provided in this [PDF document](../assets/devices/moddable-two-dimensions.pdf). These are helpful when designing a case for Moddable Two. 
+The complete dimensions of Moddable Two are provided in this [PDF document](../assets/devices/moddable-two-dimensions.pdf). These are helpful when designing a case for Moddable Two.
 
 <a id="setup"></a>
 ## SDK and Host Environment Setup
@@ -118,7 +118,7 @@ After you've set up your host environment and ESP32 tools, take the following st
 1. Attach the programmer to your Moddable Two.
 
 	Make sure you have the programmer oriented correctly. The orientation should match the image below.
-	
+
 	<img src="../assets/devices/moddable-two-programmer.jpg">
 
 	**Note**: The USB port on Moddable Two may be used to provide power when operating without the programmer. The USB port is only for powering Moddable Two. It cannot be used to program Moddable Two.
@@ -129,24 +129,24 @@ After you've set up your host environment and ESP32 tools, take the following st
 
 3. Build and deploy the app with `mcconfig`.
 
-	`mcconfig` is the command line tool to build and launch Moddable apps on microcontrollers and the simulator. Full documentation of `mcconfig` is available [here](../tools/tools.md). 
-	
+	`mcconfig` is the command line tool to build and launch Moddable apps on microcontrollers and the simulator. Full documentation of `mcconfig` is available [here](../tools/tools.md).
+
 	Use the platform `-p esp32/moddable_two`  with `mcconfig` to build for Moddable Two. For example, to build the [`piu/balls` example](../../examples/piu/balls):
-	
+
 	```text
 	cd $MODDABLE/examples/piu/balls
 	mcconfig -d -m -p esp32/moddable_two
 	```
-	
+
 	The [examples readme](../../examples) contains additional information about other commonly used `mcconfig` arguments for screen rotation, Wi-Fi configuration, and more.
-	
+
 	Use the platform `-p simulator/moddable_two` with `mcconfig` to build for the Moddable Two simulator.
-	
+
 
 <a id="troubleshooting"></a>
 ## Troubleshooting
 
-See the Troubleshooting section of the [ESP32 documentation](./esp32.md) for a list of common issues and how to resolve them.
+See the Troubleshooting section of the [ESP32 documentation](./esp32.md#troubleshooting) for a list of common issues and how to resolve them.
 
 <a id="development-resources"></a>
 ## Development Resources
@@ -154,14 +154,14 @@ See the Troubleshooting section of the [ESP32 documentation](./esp32.md) for a l
 <a id="examples"></a>
 ### Examples
 
-The Moddable SDK has over 150 [example apps](../../examples) that demonstrate how to use its many features. The vast majority of these examples run on Moddable Two. 
+The Moddable SDK has over 150 [example apps](../../examples) that demonstrate how to use its many features. The vast majority of these examples run on Moddable Two.
 
 That said, not every example is compatible with Moddable Two hardware. For example, some examples are designed to test specific display and touch drivers that are not compatible with the Moddable Two display and give a build error.
 
 <a id="documentation"></a>
 ### Documentation
 
-All the documentation for the Moddable SDK is in the [documentation](../) directory. The **documentation**, **examples**, and **modules** directories share a common structure to make it straightforward to locate information. Some of the highlights include: 
+All the documentation for the Moddable SDK is in the [documentation](../) directory. The **documentation**, **examples**, and **modules** directories share a common structure to make it straightforward to locate information. Some of the highlights include:
 
 - The `commodetto` subdirectory, which contains resources related to Commodetto--a bitmap graphics library that provides a 2D graphics API--and Poco, a lightweight rendering engine.
 - The `piu` subdirectory, which contains resources related to Piu, a user interface framework that makes it easier to create complex, responsive layouts.
@@ -170,7 +170,7 @@ All the documentation for the Moddable SDK is in the [documentation](../) direct
 
 <a id="backlight"></a>
 ### Backlight
-The original Moddable Two has an always-on backlight. The second revision has the ability to adjust the backlight brightness in software. Moddable Two units with backlight brightness control are identified by the small `ESP32 r9` printed on the back of the board to the right of the Moddable logo. 
+The original Moddable Two has an always-on backlight. The second revision has the ability to adjust the backlight brightness in software. Moddable Two units with backlight brightness control are identified by the small `ESP32 r9` printed on the back of the board to the right of the Moddable logo.
 
 The backlight control is connected to GPIO 18. There is a constant defined for the backlight GPIO in the host config.
 
@@ -192,7 +192,7 @@ The brightness of the backlight may be set at build time in the `config` section
 You can also set the brightness on the command line when building with `mcconfig`. Here it is set to 50%.
 
 ```text
-mcconfig -d -m -p esp32/moddable_two backlight=50
+mcconfig -d -m -p esp32/moddable_two brightness=50
 ```
 
 The `setup/target` module for Moddable Two installs a global variable named `backlight` that you can use to adjust the backlight in your code. Here it is set to 80%.

@@ -26,6 +26,8 @@ declare module "time" {
     timezone: number;
     dst: number;
     ticks: number;
+    delta(start: number, end?: number): number;
+    readonly microseconds?: number;
   }
   export {Time as default};
 }

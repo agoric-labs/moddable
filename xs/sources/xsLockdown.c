@@ -49,6 +49,28 @@ void fxSetHostFunctionProperty(txMachine* the, txSlot* property, txCallback call
 	mxPop();
 }
 
+static void fx_lockdown_aux(txMachine* the, txInteger length, txSlot* prototype, txSlot* slot)
+{
+	if (slot) {
+		txSlot* constructor;
+		txSlot* instance;
+		txSlot* property;
+		fxDuplicateInstance(the, mxThrowTypeErrorFunction.value.reference);
+		constructor = the->stack;
+		instance = constructor->value.reference;
+		instance->flag |= XS_CAN_CONSTRUCT_FLAG;
+		mxFunctionInstanceCode(instance)->ID = XS_NO_ID; 
+		mxFunctionInstanceHome(instance)->value.home.object = NULL;
+		property = mxBehaviorGetProperty(the, instance, mxID(_length), 0, XS_OWN);
+		property->value.integer = length;
+		property = fxLastProperty(the, instance);
+		fxNextSlotProperty(the, property, prototype, mxID(_prototype), XS_GET_ONLY);
+		slot->kind = constructor->kind;
+		slot->value = constructor->value;
+		mxPop();
+	}
+}
+
 void fx_lockdown(txMachine* the)
 {
 #define mxHardenBuiltInCall \
@@ -68,35 +90,20 @@ void fx_lockdown(txMachine* the)
 	if (mxProgram.value.reference->flag & XS_DONT_MARSHALL_FLAG)
 		mxTypeError("lockdown already called");
 	mxProgram.value.reference->flag |= XS_DONT_MARSHALL_FLAG;
-
+	
 	property = mxBehaviorSetProperty(the, mxAsyncFunctionPrototype.value.reference, mxID(_constructor), 0, XS_OWN);
-	if (property) {
-		property->kind = mxThrowTypeErrorFunction.kind;
-		property->value = mxThrowTypeErrorFunction.value;
-	}
+	fx_lockdown_aux(the, 1, &mxAsyncFunctionPrototype, property);
 	property = mxBehaviorSetProperty(the, mxAsyncGeneratorFunctionPrototype.value.reference, mxID(_constructor), 0, XS_OWN);
-	if (property) {
-		property->kind = mxThrowTypeErrorFunction.kind;
-		property->value = mxThrowTypeErrorFunction.value;
-	}
+	fx_lockdown_aux(the, 1, &mxAsyncGeneratorFunctionPrototype, property);
 	property = mxBehaviorSetProperty(the, mxFunctionPrototype.value.reference, mxID(_constructor), 0, XS_OWN);
-	if (property) {
-		property->kind = mxThrowTypeErrorFunction.kind;
-		property->value = mxThrowTypeErrorFunction.value;
-	}
+	fx_lockdown_aux(the, 1, &mxFunctionPrototype, property);
 	property = mxBehaviorSetProperty(the, mxGeneratorFunctionPrototype.value.reference, mxID(_constructor), 0, XS_OWN);
-	if (property) {
-		property->kind = mxThrowTypeErrorFunction.kind;
-		property->value = mxThrowTypeErrorFunction.value;
-	}
+	fx_lockdown_aux(the, 1, &mxGeneratorFunctionPrototype, property);
 	property = mxBehaviorSetProperty(the, mxCompartmentPrototype.value.reference, mxID(_constructor), 0, XS_OWN);
-	if (property) {
-		property->kind = mxThrowTypeErrorFunction.kind;
-		property->value = mxThrowTypeErrorFunction.value;
-	}
+	fx_lockdown_aux(the, 1, &mxCompartmentPrototype, property);
 
 	instance = fxNewArray(the, _Compartment);
-	property = the->stackPrototypes - 1;
+	property = the->stackIntrinsics - 1;
 	item = instance->next->value.array.address;
 	for (id = 0; id < XS_SYMBOL_ID_COUNT; id++) {
 		*((txIndex*)item) = id;
@@ -117,15 +124,16 @@ void fx_lockdown(txMachine* the)
 	property = mxBehaviorSetProperty(the, the->stack->value.reference, mxID(_now), 0, XS_OWN);
 	fxSetHostFunctionProperty(the, property, mxCallback(fx_Date_now_secure), 0, mxID(_now));
 	property = mxBehaviorSetProperty(the, mxDatePrototype.value.reference, mxID(_constructor), 0, XS_OWN);
-	if (property) {
-		property->kind = mxThrowTypeErrorFunction.kind;
-		property->value = mxThrowTypeErrorFunction.value;
-	}
+	fx_lockdown_aux(the, 7, &mxDatePrototype, property);
 	mxPull(instance->next->value.array.address[_Date]);
 	
 	fxDuplicateInstance(the, mxMathObject.value.reference);
 	property = mxBehaviorSetProperty(the, the->stack->value.reference, mxID(_random), 0, XS_OWN);
 	fxSetHostFunctionProperty(the, property, mxCallback(fx_Math_random_secure), 0, mxID(_random));
+#if mxECMAScript2023
+	property = mxBehaviorSetProperty(the, the->stack->value.reference, mxID(_irandom), 0, XS_OWN);
+	fxSetHostFunctionProperty(the, property, mxCallback(fx_Math_irandom_secure), 0, mxID(_irandom));
+#endif	
 	mxPull(instance->next->value.array.address[_Math]);
 
 	mxPull(mxCompartmentGlobal);
@@ -136,10 +144,10 @@ void fx_lockdown(txMachine* the)
 	mxPullSlot(harden);
 	
 	for (id = XS_SYMBOL_ID_COUNT; id < _Infinity; id++) {
-		mxHardenBuiltInCall; mxPush(the->stackPrototypes[-1 - id]); mxHardenBuiltInRun;
+		mxHardenBuiltInCall; mxPush(the->stackIntrinsics[-1 - id]); mxHardenBuiltInRun;
 	}
 	for (id = _Compartment; id < XS_INTRINSICS_COUNT; id++) {
-		mxHardenBuiltInCall; mxPush(the->stackPrototypes[-1 - id]); mxHardenBuiltInRun;
+		mxHardenBuiltInCall; mxPush(the->stackIntrinsics[-1 - id]); mxHardenBuiltInRun;
 	}
 	
 	mxHardenBuiltInCall; mxPush(mxArgumentsSloppyPrototype); mxHardenBuiltInRun;
@@ -187,6 +195,9 @@ void fx_lockdown(txMachine* the)
 	mxHardenBuiltInCall; mxPush(mxArrayPrototype); fxGetID(the, mxID(_Symbol_unscopables)); mxHardenBuiltInRun;
 	
 	mxHardenBuiltInCall; mxPush(mxCompartmentGlobal); mxHardenBuiltInRun;
+	
+	mxHardenBuiltInCall; mxPushSlot(harden); mxHardenBuiltInRun;
+	mxHardenBuiltInCall; mxPushSlot(mxFunction); mxHardenBuiltInRun;
 	
 	mxFunctionInstanceCode(mxThrowTypeErrorFunction.value.reference)->ID = XS_NO_ID; 
 	mxFunctionInstanceHome(mxThrowTypeErrorFunction.value.reference)->value.home.object = NULL;
@@ -720,7 +731,7 @@ void fxVerifyErrorString(txMachine* the, txSlot* slot, txID id, txIndex index, t
 		}
 	}
 	else {
-		fxNumberToString(the->dtoa, index, the->nameBuffer, sizeof(the->nameBuffer), 0, 0);
+		fxNumberToString(the, index, the->nameBuffer, sizeof(the->nameBuffer), 0, 0);
 		fxConcatStringC(the, slot, "[");
 		fxConcatStringC(the, slot, the->nameBuffer);
 		fxConcatStringC(the, slot, "]");
@@ -795,10 +806,11 @@ void fxVerifyInstance(txMachine* the, txSlot* list, txSlot* path, txSlot* instan
 				}
 				break;
 			case XS_CODE_KIND:
-			case XS_CODE_X_KIND:
 				if (property->value.code.closures)
 					fxVerifyQueue(the, list, path, property->value.code.closures, XS_NO_ID, 0, "Environment");
                 fxVerifyCode(the, list, path, property->value.code.address, ((txChunk*)(((txByte*)(property->value.code.address)) - sizeof(txChunk)))->size);
+				break;
+			case XS_CODE_X_KIND:
 				break;
 			case XS_DATA_VIEW_KIND:
 				property = property->next;
@@ -921,3 +933,33 @@ void fxVerifyQueue(txMachine* the, txSlot* list, txSlot* path, txSlot* instance,
 	}
 	name->next = path;
 }
+
+void fx_unicodeCompare(txMachine* the)
+{
+	txString aString;
+	txString bString;
+
+	if (mxArgc < 1)
+		aString = "undefined";
+	else
+		aString = fxToString(the, mxArgv(0));
+	if (mxArgc < 2)
+		bString = "undefined";
+	else
+		bString = fxToString(the, mxArgv(1));
+#ifdef mxMetering
+	{
+		txSize aLength = fxUnicodeLength(aString, C_NULL);
+		txSize bLength = fxUnicodeLength(bString, C_NULL);
+		if (aLength < bLength) {
+			the->meterIndex += aLength * XS_STRING_METERING;
+		}
+		else {
+			the->meterIndex += bLength * XS_STRING_METERING;
+		}
+	}
+#endif	
+	mxResult->value.integer = mxStringUnicodeCompare(aString, bString);
+	mxResult->kind = XS_INTEGER_KIND;
+}
+

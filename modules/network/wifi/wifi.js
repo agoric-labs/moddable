@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2020  Moddable Tech, Inc.
+ * Copyright (c) 2016-2024  Moddable Tech, Inc.
  *
  *   This file is part of the Moddable SDK Runtime.
  * 
@@ -39,13 +39,19 @@ export default class WiFi @ "xs_wifi_destructor" {
 	static scan(dictionary, callback) @ "xs_wifi_scan";
 	static connect(dictionary) @ "xs_wifi_connect";		// no arguments to disconnect
 	static accessPoint(dictionary) @ "xs_wifi_accessPoint";
-	static close() {WiFi.connect();}		// deprecated
+	static close() {throw new Error("use WiFi.disconnect()")}		// deprecated
 	static disconnect() {WiFi.connect();}
+
+	static Mode = Object.freeze({
+		// off: -5,			// reserved. ESP32-only now. Could be extended to others.
+		none: 0,
+		station: 1,
+		accessPoint: 2
+		// 3 reserved for station & accessPoint (WiFi.mode.station | WiFi.mode.accessPoint) 
+	});
+
+	static gotIP = "gotIP";
+	static lostIP = "lostIP";
+	static connected = "connect";
+	static disconnected = "disconnect";
 }
-
-WiFi.gotIP = "gotIP";
-WiFi.lostIP = "lostIP";
-WiFi.connected = "connect";
-WiFi.disconnected = "disconnect";
-
-Object.freeze(WiFi.prototype);

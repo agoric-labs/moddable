@@ -50,12 +50,18 @@ export class TOOL {
 			args.forEach(arg => argv.push(arg));
 		}
 		
-		let path = this.getenv("MODDABLE") + "/tools/VERSION";
+		let path = this.getenv("MODDABLE");
+		if (!path)
+			throw new Error("missing MODDABLE environment variable")
+		path = this.resolveDirectoryPath(path);
+		if (!path)
+			throw new Error("invalid MODDABLE environment variable")
+		path += "/tools/VERSION";
 		if ("win" === this.currentPlatform)
 			path = path.replaceAll("/", "\\");
 		const fileVersion = (this.isDirectoryOrFile(path) == 1) ? this.readFileString(path) : undefined;
 		const toolsVersion = this.getToolsVersion();
-		if (fileVersion === toolsVersion)
+		if (fileVersion.trim() === toolsVersion)
 			return;
 
 		trace(`Moddable SDK tools mismatch between binary (${toolsVersion}) and source (${fileVersion})! Rebuilding tools.\n`);
@@ -76,6 +82,7 @@ export class TOOL {
 		}
 		this.run = function() {};
 	}
+	get build() @ "Tool_prototype_get_build";
 	get ipAddress() @ "Tool_prototype_get_ipAddress";
 	get currentDirectory() @ "Tool_prototype_get_currentDirectory";
 	set currentDirectory(it) @ "Tool_prototype_set_currentDirectory";

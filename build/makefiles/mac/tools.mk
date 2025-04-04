@@ -116,10 +116,12 @@ MODULES = \
 	$(MOD_DIR)/commodetto/ParseBMP.xsb \
 	$(MOD_DIR)/commodetto/PixelsOut.xsb \
 	$(MOD_DIR)/commodetto/Poco.xsb \
+	$(MOD_DIR)/commodetto/PocoCore.xsb \
 	$(MOD_DIR)/commodetto/ReadJPEG.xsb \
 	$(MOD_DIR)/commodetto/ReadPNG.xsb \
 	$(MOD_DIR)/commodetto/RLE4Out.xsb \
 	$(MOD_DIR)/wavreader.xsb \
+	$(MOD_DIR)/base64.xsb \
 	$(MOD_DIR)/ber.xsb \
 	$(MOD_DIR)/crypt.xsb \
 	$(MOD_DIR)/curve.xsb \
@@ -136,26 +138,30 @@ MODULES = \
 	$(MOD_DIR)/image2cs.xsb \
 	$(MOD_DIR)/mcbundle.xsb \
 	$(MOD_DIR)/mcconfig.xsb \
+	$(MOD_DIR)/mchex.xsb \
 	$(MOD_DIR)/mclocal.xsb \
 	$(MOD_DIR)/mcmanifest.xsb \
+	$(MOD_DIR)/mcpack.xsb \
 	$(MOD_DIR)/mcprintski.xsb \
 	$(MOD_DIR)/mcrez.xsb \
 	$(MOD_DIR)/nodered2mcu.xsb \
 	$(MOD_DIR)/png2bmp.xsb \
 	$(MOD_DIR)/resampler.xsb \
 	$(MOD_DIR)/rle4encode.xsb \
+	$(MOD_DIR)/transform.xsb \
 	$(MOD_DIR)/tool.xsb \
 	$(MOD_DIR)/unicode-ranges.xsb \
 	$(MOD_DIR)/wav2maud.xsb \
 	$(MOD_DIR)/bles2gatt.xsb \
 	$(MOD_DIR)/url.xsb \
+	$(TMP_DIR)/modBase64.c.xsi \
 	$(TMP_DIR)/commodettoBitmap.c.xsi \
 	$(TMP_DIR)/commodettoBufferOut.c.xsi \
 	$(TMP_DIR)/commodettoColorCellOut.c.xsi \
 	$(TMP_DIR)/commodettoConvert.c.xsi \
 	$(TMP_DIR)/commodettoParseBMF.c.xsi \
 	$(TMP_DIR)/commodettoParseBMP.c.xsi \
-	$(TMP_DIR)/commodettoPoco.c.xsi \
+	$(TMP_DIR)/commodettoPocoCore.c.xsi \
 	$(TMP_DIR)/commodettoPocoBlit.c.xsi \
 	$(TMP_DIR)/commodettoReadJPEG.c.xsi \
 	$(TMP_DIR)/commodettoReadPNG.c.xsi \
@@ -180,9 +186,11 @@ PRELOADS =\
 	-p commodetto/ParseBMF.xsb\
 	-p commodetto/ParseBMP.xsb\
 	-p commodetto/Poco.xsb\
+	-p commodetto/PocoCore.xsb\
 	-p commodetto/ReadPNG.xsb\
 	-p commodetto/RLE4Out.xsb\
 	-p wavreader.xsb\
+	-p base64.xsb\
 	-p ber.xsb\
 	-p crypt.xsb\
 	-p curve.xsb\
@@ -192,6 +200,7 @@ PRELOADS =\
 	-p modular.xsb\
 	-p x509.xsb\
 	-p resampler.xsb\
+	-p transform.xsb\
 	-p unicode-ranges.xsb\
 	-p file.xsb\
 	-p url.xsb
@@ -203,13 +212,15 @@ HEADERS = \
 	$(INSTRUMENTATION)/modInstrumentation.h
 OBJECTS = \
 	$(TMP_DIR)/adpcm-lib.c.o \
+	$(TMP_DIR)/adpcm-dns.c.o \
+	$(TMP_DIR)/modBase64.c.o \
 	$(TMP_DIR)/commodettoBitmap.c.o \
 	$(TMP_DIR)/commodettoBufferOut.c.o \
 	$(TMP_DIR)/commodettoColorCellOut.c.o \
 	$(TMP_DIR)/commodettoConvert.c.o \
 	$(TMP_DIR)/commodettoParseBMF.c.o \
 	$(TMP_DIR)/commodettoParseBMP.c.o \
-	$(TMP_DIR)/commodettoPoco.c.o \
+	$(TMP_DIR)/commodettoPocoCore.c.o \
 	$(TMP_DIR)/commodettoPocoBlit.c.o \
 	$(TMP_DIR)/commodettoReadJPEG.c.o \
 	$(TMP_DIR)/commodettoReadPNG.c.o \
@@ -217,6 +228,7 @@ OBJECTS = \
 	$(TMP_DIR)/xsBigIntEx.c.o \
 	$(TMP_DIR)/ec.c.o \
 	$(TMP_DIR)/image2cs.c.o \
+	$(TMP_DIR)/mcpack.c.o \
 	$(TMP_DIR)/miniz.c.o \
 	$(TMP_DIR)/modCrypt.c.o \
 	$(TMP_DIR)/modInstrumentation.c.o \
@@ -242,7 +254,9 @@ COMMANDS = \
 	$(BIN_DIR)/image2cs \
 	$(BIN_DIR)/mcbundle \
 	$(BIN_DIR)/mcconfig \
+	$(BIN_DIR)/mchex \
 	$(BIN_DIR)/mclocal \
+	$(BIN_DIR)/mcpack \
 	$(BIN_DIR)/mcprintski \
 	$(BIN_DIR)/mcrez \
 	$(BIN_DIR)/nodered2mcu \
@@ -264,12 +278,7 @@ C_DEFINES = \
 	-DINCLUDE_XSPLATFORM=1 \
 	-DXSPLATFORM=\"mac_xs.h\" \
 	-DXSTOOLS=1 \
-	-DmxRun=1 \
-	-DmxParse=1 \
-	-DmxNoFunctionLength=1 \
-	-DmxNoFunctionName=1 \
-	-DmxHostFunctionPrimitive=1 \
-	-DmxFewGlobalsTable=1 \
+	-DmxStringInfoCacheLength=4 \
 	-DkModdableToolsVersion=\"$(TOOLS_VERSION)\"
 ifeq ($(GOAL),debug)
 	C_DEFINES += -DMODINSTRUMENTATION=1 -DmxInstrument=1
@@ -297,7 +306,7 @@ XSC = $(BUILD_DIR)/bin/mac/$(GOAL)/xsc
 XSID = $(BUILD_DIR)/bin/mac/$(GOAL)/xsid
 XSL = $(BUILD_DIR)/bin/mac/$(GOAL)/xsl
 	
-VPATH += $(XS_DIRECTORIES) $(COMMODETTO) $(INSTRUMENTATION) $(CRYPT)/etc $(CRYPT)/digest ${CRYPT}/digest/kcl ${CRYPT}/arith $(DATA)/url $(DATA)/wavreader $(TOOLS)
+VPATH += $(XS_DIRECTORIES) $(COMMODETTO) $(INSTRUMENTATION) $(CRYPT)/etc $(CRYPT)/digest ${CRYPT}/digest/kcl ${CRYPT}/arith $(DATA)/url $(DATA)/wavreader $(DATA)/base64 $(TOOLS)
 
 build: $(LIB_DIR) $(TMP_DIR) $(MOD_DIR) $(MOD_DIR)/commodetto $(MOD_DIR) $(BIN_DIR) $(BIN_DIR)/$(NAME) $(COMMANDS) $(BIN_DIR)/README.txt
 
@@ -332,6 +341,10 @@ $(TMP_DIR)/mc.xs.c.o: $(TMP_DIR)/mc.xs.c $(HEADERS)
 $(TMP_DIR)/mc.xs.c: $(MODULES)
 	@echo "#" $(NAME) $(GOAL) ": xsl modules"
 	$(XSL) -b $(MOD_DIR) -o $(TMP_DIR) $(PRELOADS) $(CREATION) $(MODULES)
+
+$(MOD_DIR)/%.xsb: $(DATA)/base64/%.js
+	@echo "#" $(NAME) $(GOAL) ": xsc" $(<F)
+	$(BIN_DIR)/xsc $< -c -d -e -o $(MOD_DIR) -r $*
 
 $(MOD_DIR)/commodetto/%.xsb: $(COMMODETTO)/commodetto%.js
 	@echo "#" $(NAME) $(GOAL) ": xsc" $(<F)
@@ -381,6 +394,11 @@ $(BIN_DIR)/cdv: $(MAKEFILE_LIST)
 	echo '#!/bin/bash\nDIR=$$(cd "$$(dirname "$$BASH_SOURCE")"; cd -P "$$(dirname "$$(readlink "$$BASH_SOURCE" || echo .)")"; pwd)\n$$DIR/tools cdv "$$@"' > $(BIN_DIR)/cdv
 	chmod +x $(BIN_DIR)/cdv
 
+$(BIN_DIR)/mchex: $(MAKEFILE_LIST)
+	@echo "#" $(NAME) $(GOAL) ": mchex"
+	echo '#!/bin/bash\nDIR=$$(cd "$$(dirname "$$BASH_SOURCE")"; cd -P "$$(dirname "$$(readlink "$$BASH_SOURCE" || echo .)")"; pwd)\n$$DIR/tools mchex "$$@"' > $(BIN_DIR)/mchex
+	chmod +x $(BIN_DIR)/mchex
+
 $(BIN_DIR)/colorcellencode: $(MAKEFILE_LIST)
 	@echo "#" $(NAME) $(GOAL) ": colorcellencode"
 	echo '#!/bin/bash\nDIR=$$(cd "$$(dirname "$$BASH_SOURCE")"; cd -P "$$(dirname "$$(readlink "$$BASH_SOURCE" || echo .)")"; pwd)\n$$DIR/tools colorcellencode "$$@"' > $(BIN_DIR)/colorcellencode
@@ -410,6 +428,11 @@ $(BIN_DIR)/mclocal: $(MAKEFILE_LIST)
 	@echo "#" $(NAME) $(GOAL) ": mclocal"
 	echo '#!/bin/bash\nDIR=$$(cd "$$(dirname "$$BASH_SOURCE")"; cd -P "$$(dirname "$$(readlink "$$BASH_SOURCE" || echo .)")"; pwd)\n$$DIR/tools mclocal "$$@"' > $(BIN_DIR)/mclocal
 	chmod +x $(BIN_DIR)/mclocal
+	
+$(BIN_DIR)/mcpack: $(MAKEFILE_LIST)
+	@echo "#" $(NAME) $(GOAL) ": mcpack"
+	echo '#!/bin/bash\nDIR=$$(cd "$$(dirname "$$BASH_SOURCE")"; cd -P "$$(dirname "$$(readlink "$$BASH_SOURCE" || echo .)")"; pwd)\n$$DIR/tools mcpack "$$@"' > $(BIN_DIR)/mcpack
+	chmod +x $(BIN_DIR)/mcpack
 
 $(BIN_DIR)/mcprintski: $(MAKEFILE_LIST)
 	@echo "#" $(NAME) $(GOAL) ": mcprintski"

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023  Moddable Tech, Inc.
+ * Copyright (c) 2019-2025  Moddable Tech, Inc.
  *
  *   This file is part of the Moddable SDK Runtime.
  *
@@ -18,24 +18,15 @@
  *
  */
 
-/*
-	DigitalBank - uing ESP8266 hardware registers and ESP32 hybrid of ESP-IDF and hardware registers
-
-	To do:
-
-		ESP8266 implementation assumes a single VM
-
-*/
-
 #include "xsmc.h"			// xs bindings for microcontroller
 #include "xsHost.h"			// esp platform support
 #include "mc.xs.h"			// for xsID_* values
+#include "digitalbank.h"
 
 #include "builtinCommon.h"
 
 #include "driver/gpio.h"
 
-//#include "soc/gpio_caps.h"
 #include "soc/gpio_periph.h"
 #include "hal/gpio_hal.h"
 
@@ -53,19 +44,19 @@ enum {
 };
 
 struct DigitalRecord {
-	uint32_t	pins;
-	xsSlot		obj;
-	uint8_t		bank;
-	uint8_t		hasOnReadable;
-	uint8_t		isInput;
-	uint8_t		useCount;
+	uint32_t					pins;
+	xsSlot						obj;
+	uint8_t						bank;
+	uint8_t						hasOnReadable;
+	uint8_t						isInput;
+	uint8_t						useCount;
 	// fields after here only allocated if onReadable callback present
-	uint32_t	triggered;
-	uint32_t	rises;
-	uint32_t	falls;
+	uint32_t					triggered;
 
-	xsMachine	*the;
-	xsSlot		*onReadable;
+	xsMachine					*the;
+	xsSlot						*onReadable;
+	modDigitalBankOnReadable	onReadableFunc;
+	void						*onReadableRefcon;
 	struct DigitalRecord *next;
 };
 typedef struct DigitalRecord DigitalRecord;
@@ -75,12 +66,23 @@ static void digitalISR(void *refcon);
 static void digitalDeliver(void *the, void *refcon, uint8_t *message, uint16_t messageLength);
 static void xs_digitalbank_mark(xsMachine* the, void* it, xsMarkRoot markRoot);
 
+static void *modDigitalBankValidate(xsMachine *the, xsSlot *instance);
+static uint32_t modDigitalBankRead(void *instanceData);
+static void modDigitalBankWrite(void *instanceData, uint32_t value);
+static uint8_t modDigitalBankSetOnReadable(void *instanceData, modDigitalBankOnReadable func, void *refcon);
+
 static Digital gDigitals;	// pins with onReadable callbacks
 
-/* static */ const xsHostHooks ICACHE_RODATA_ATTR xsDigitalBankHooks = {
-	xs_digitalbank_destructor,
-	xs_digitalbank_mark,
-	NULL
+static const xsDigitalBankHostHooksRecord ICACHE_RODATA_ATTR xsDigitalBankHooks = {
+	.hooks = {
+		xs_digitalbank_destructor,
+		xs_digitalbank_mark,
+		"digitalbank"
+	},
+	.doValidate = modDigitalBankValidate,
+	.doRead = modDigitalBankRead,
+	.doWrite = modDigitalBankWrite,
+	.doSetOnReadable = modDigitalBankSetOnReadable,
 };
 
 void xs_digitalbank_constructor(xsMachine *the)
@@ -106,7 +108,11 @@ void xs_digitalbank_constructor(xsMachine *the)
 
 	xsmcGet(tmp, xsArg(0), xsID_pins);
 	pins = xsmcToInteger(tmp);
+#if kPinBanks > 1
 	mask = bank ? (SOC_GPIO_VALID_GPIO_MASK >> 32) : (uint32_t)SOC_GPIO_VALID_GPIO_MASK;
+#else
+	mask = (uint32_t)SOC_GPIO_VALID_GPIO_MASK;
+#endif
 	if (!pins || (pins != (pins & mask)))
 		xsUnknownError("invalid pin");
 
@@ -136,7 +142,11 @@ void xs_digitalbank_constructor(xsMachine *the)
 		}
 	}
 	else if ((kDigitalOutput == mode) || (kDigitalOutputOpenDrain == mode)) {
+#if kPinBanks > 1
 		mask = bank ? (SOC_GPIO_VALID_OUTPUT_GPIO_MASK >> 32) : (uint32_t)SOC_GPIO_VALID_OUTPUT_GPIO_MASK; 
+#else
+		mask = (uint32_t)SOC_GPIO_VALID_OUTPUT_GPIO_MASK; 
+#endif
 		if (pins != (pins & mask))
 			xsRangeError("input only");
 	}
@@ -193,11 +203,10 @@ void xs_digitalbank_constructor(xsMachine *the)
 		xsSlot tmp;
 
 		digital->the = the;
-		digital->rises = rises;
-		digital->falls = falls;
 		digital->triggered = 0;
 // exception for rise/fall on pin 16
 		digital->onReadable = onReadable;
+		digital->onReadableFunc = C_NULL;
 
 		if (NULL == gDigitals)
 			gpio_install_isr_service(0);
@@ -253,6 +262,8 @@ void xs_digitalbank_destructor(void *data)
 		}
 	}
 
+	builtinCriticalSectionEnd();
+
 	if (digital->pins) {
 		int pin, lastPin = digital->bank ? GPIO_NUM_MAX - 1 : 31;
 
@@ -264,14 +275,16 @@ void xs_digitalbank_destructor(void *data)
 			}
 		}
 
-		if (NULL == gDigitals)
-			gpio_uninstall_isr_service();
+//		if (NULL == gDigitals)
+//			gpio_uninstall_isr_service();		// cannot uninstall ISR service as other modules may be relying on it (not reference counted by ESP-IDF)
 		builtinFreePins(digital->bank, digital->pins);
 	}
 
-	builtinCriticalSectionEnd();
-
+#if defined(_NO_ATOMICS)
+	if (0 == --digital->useCount)
+#else
 	if (0 == __atomic_sub_fetch(&digital->useCount, 1, __ATOMIC_SEQ_CST))
+#endif
 		c_free(data);
 }
 
@@ -297,49 +310,23 @@ void xs_digitalbank_close(xsMachine *the)
 void xs_digitalbank_read(xsMachine *the)
 {
 	Digital digital = xsmcGetHostDataValidate(xsThis, (void *)&xsDigitalBankHooks);
-	uint32_t result;
 
 	if (!digital->isInput)
 		xsUnknownError("can't read output");
 
-	gpio_dev_t *hw = &GPIO;
-
-#if kCPUESP32C3
-	result = hw->in.data;
-#else
-    if (digital->bank)
-        result = hw->in1.data;
-    else
-        result = hw->in;
-#endif
-
-	xsmcSetInteger(xsResult, result & digital->pins);
+	uint32_t result = modDigitalBankRead(digital);
+	xsmcSetInteger(xsResult, result);
 }
 
 void xs_digitalbank_write(xsMachine *the)
 {
 	Digital digital = xsmcGetHostDataValidate(xsThis, (void *)&xsDigitalBankHooks);
-	uint32_t value;
 
 	if (digital->isInput)
 		xsUnknownError("can't write input");
 
-	gpio_dev_t *hw = &GPIO;
-	value = xsmcToInteger(xsArg(0)) & digital->pins;
-
-#if kCPUESP32C3
-	hw->out_w1ts.out_w1ts = value;
-	hw->out_w1tc.out_w1tc = ~value & digital->pins;
-#else
-	if (digital->bank) {
-		hw->out1_w1ts.data = value;
-		hw->out1_w1tc.data = ~value & digital->pins;
-	}
-	else {
-		hw->out_w1ts = value;
-		hw->out_w1tc = ~value & digital->pins;
-	}
-#endif
+	uint32_t value = xsmcToInteger(xsArg(0));
+	modDigitalBankWrite(digital, value);
 }
 
 void IRAM_ATTR digitalISR(void *refcon)
@@ -354,10 +341,17 @@ void IRAM_ATTR digitalISR(void *refcon)
 		if ((bank != walker->bank) || !(pin & walker->pins))
 			continue;
 
+		if (walker->onReadableFunc && (walker->onReadableFunc)(walker->onReadableRefcon))		// all entries in this list have hasOnReadable true
+			break;
+
 		uint32_t triggered = walker->triggered;
 		walker->triggered |= pin;
 		if (!triggered) {
+#if defined(_NO_ATOMICS)
+			walker->useCount++;
+#else
 			__atomic_add_fetch(&walker->useCount, 1, __ATOMIC_SEQ_CST);
+#endif
 			modMessagePostToMachineFromISR(walker->the, digitalDeliver, walker);
 		}
 		break;
@@ -369,7 +363,12 @@ void digitalDeliver(void *the, void *refcon, uint8_t *message, uint16_t messageL
 	Digital digital = refcon;
 	uint32_t triggered;
 
-	if (0 == __atomic_sub_fetch(&digital->useCount, 1, __ATOMIC_SEQ_CST)) {
+#if defined(_NO_ATOMICS)
+	if (0 == --digital->useCount)
+#else
+	if (0 == __atomic_sub_fetch(&digital->useCount, 1, __ATOMIC_SEQ_CST))
+#endif
+	{
 		c_free(digital);
 		return;
 	}
@@ -385,14 +384,23 @@ void digitalDeliver(void *the, void *refcon, uint8_t *message, uint16_t messageL
 	xsEndHost(digital->the);
 }
 
-
-//@@ verify read is allowed
-uint32_t modDigitalBankRead(Digital digital)
+void *modDigitalBankValidate(xsMachine *the, xsSlot *instance)
 {
+	return xsmcGetHostDataValidate(*instance, (xsHostHooks *)&xsDigitalBankHooks);
+}
+
+uint32_t modDigitalBankRead(void *instanceData)
+{
+	Digital digital = instanceData;
 	gpio_dev_t *hw = &GPIO;
+
+	if (!digital->isInput)
+		return 0;
 
 #if kCPUESP32C3
 	return hw->in.data & digital->pins;
+#elif kCPUESP32C6 || kCPUESP32H2
+	return hw->in.val & digital->pins;
 #else
     if (digital->bank)
         return hw->in1.data & digital->pins;
@@ -401,23 +409,49 @@ uint32_t modDigitalBankRead(Digital digital)
 #endif
 }
 
-//@@ verify write is allowed
-void modDigitalBankWrite(Digital digital, uint32_t value)
+void modDigitalBankWrite(void *instanceData, uint32_t value)
 {
+	Digital digital = instanceData;
 	gpio_dev_t *hw = &GPIO;
 	value &= digital->pins;
 
-#if kCPUESP32C3
+	if (digital->isInput)
+		return;
+
+#if kCPUESP32C3 || kCPUESP32H2
 	hw->out_w1ts.out_w1ts = value;
 	hw->out_w1tc.out_w1tc = ~value & digital->pins;
 #else
 	if (digital->bank) {
+#if kCPUESP32C6
+		hw->out1_w1ts.val = value;
+		hw->out1_w1tc.val = ~value & digital->pins;
+#else
 		hw->out1_w1ts.data = value;
 		hw->out1_w1tc.data = ~value & digital->pins;
+#endif
 	}
 	else {
+#if kCPUESP32C6
+		hw->out_w1ts.val = value;
+		hw->out_w1tc.val = ~value & digital->pins;
+#else
 		hw->out_w1ts = value;
 		hw->out_w1tc = ~value & digital->pins;
+#endif
 	}
 #endif
+}
+
+uint8_t modDigitalBankSetOnReadable(void *instanceData, modDigitalBankOnReadable func, void *refcon)
+{
+	Digital digital = instanceData;
+
+	if (!digital->hasOnReadable)
+		return 0;
+
+	digital->onReadableFunc = func;
+	digital->onReadableRefcon = refcon;
+
+	return 1;
 }

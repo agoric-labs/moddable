@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2018  Moddable Tech, Inc.
+ * Copyright (c) 2016-2023  Moddable Tech, Inc.
  *
  *   This file is part of the Moddable SDK Runtime.
  * 
@@ -21,7 +21,7 @@
 import Bitmap from "commodetto/Bitmap";
 import parseBMP from "commodetto/parseBMP";
 import parseRLE from "commodetto/parseRLE";
-import Poco from "commodetto/Poco";
+import Poco from "commodetto/PocoCore";
 import _Resource from "Resource";
 globalThis.Resource = _Resource;
 
@@ -124,54 +124,6 @@ export const Die = Template(die);
 Object.freeze(die);
 global.Die = Die;
 
-// PiuImage.c
-
-const image = {
-	__proto__: Content.prototype,
-	_create($, it) @ "PiuImage_create",
-// 	_createWith(it) {
-// 		const it = it.path;
-// 		if (it.endsWith(".png")) {
-// 			let name = it.slice(0, -4);
-// 			let path = name + "-alpha.bm4";
-// 			if (Resource.exists(path)) {
-// 				alphaBitmap = parseRLE(new Resource(path));
-// 			}
-// 			else {
-// 				path = name + "-alpha.bmp";
-// 				if (Resource.exists(path)) {
-// 					alphaBitmap = parseBMP(new Resource(path));
-// 				}
-// 				path = name + "-color.bmp";
-// 				if (Resource.exists(path)) {
-// 					colorBitmap = parseBMP(new Resource(path));
-// 				}
-// 			}
-// 		}
-// 		else if (it.endsWith("-alpha.bmp"))
-// 			alphaBitmap = parseBMP(new Resource(it));
-// 		else if (it.endsWith("-color.bmp"))
-// 			colorBitmap = parseBMP(new Resource(it));
-// 		if (alphaBitmap || colorBitmap)
-// 			this._createWithBitmaps(alphaBitmap, colorBitmap);
-// 		else
-// 			this._createWithColorCells(it);
-// 	}
-// 	_createWithBitmaps(alphaBitmap, colorBitmap) @ "PiuImage_createWithBitmaps",
-// 	_createWithColorCells() @ "PiuImage_createWithColorCells",
-	
-	get frameCount() @ "PiuImage_get_frameCount",
-	get frameIndex() @ "PiuImage_get_frameIndex",
-	
-	set frameIndex(it) @ "PiuImage_set_frameIndex",
-	
-	parseBMP(resource) { return parseBMP(resource); },
-	parseRLE(resource) { return parseRLE(resource); },
-};
-export const Image = Template(image);
-Object.freeze(image);
-global.Image = Image;
-
 // PiuApplication.c
 
 const application = {
@@ -223,10 +175,12 @@ class View @ "PiuViewDelete" {
 	_create(application, it, screen, poco, rectangle) @ "PiuView_create"
 	
 	get rotation() @ "PiuView_get_rotation" 
+	get ticks() @ "PiuView_get_ticks" 
 	
 	onDisplayReady() @ "PiuView_onDisplayReady"
 	onIdle() @ "PiuView_onIdle"
 	onMessage() @ "PiuView_onMessage"
+	onQuit() @ "PiuView_onQuit"
 	onTouchBegan(index, x, y, ticks) @ "PiuView_onTouchBegan"
 	onTouchEnded(index, x, y, ticks) @ "PiuView_onTouchEnded"
 	onTouchMoved(index, x, y, ticks) @ "PiuView_onTouchMoved"

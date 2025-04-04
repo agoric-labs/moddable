@@ -1,0 +1,16 @@
+{
+	"include": [
+		"$(MODDABLE)/examples/io/tcp/httpsclient/manifest_httpsclient.json",
+		"../mp3-http-stream/manifest_mp3streamer.json",
+		"../http-stream/manifest_wavstreamer.json"
+	],
+	"modules": {
+		"*": "./openaistreamer"
+	},
+	"preload": "openaistreamer",
+	"data": { 
+		"*": [
+			"$(MODULES)/crypt/data/ca236"
+		]
+	}
+}

@@ -65,11 +65,6 @@ C_OPTIONS = \
 	/D INCLUDE_XSPLATFORM \
 	/D XSPLATFORM=\"xslOpt.h\" \
 	/D mxLink=1 \
-	/D mxRun=1 \
-	/D mxNoFunctionLength=1 \
-	/D mxNoFunctionName=1 \
-	/D mxHostFunctionPrimitive=1 \
-	/D mxFewGlobalsTable=1 \
 	/I$(INC_DIR) \
 	/I$(PLT_DIR) \
 	/I$(SRC_DIR) \
@@ -98,6 +93,8 @@ LIBRARIES = ws2_32.lib advapi32.lib comctl32.lib comdlg32.lib gdi32.lib kernel32
 LINK_OPTIONS = /incremental:no /nologo /subsystem:console
 !IF "$(GOAL)"=="debug"
 LINK_OPTIONS = $(LINK_OPTIONS) /debug
+!ELSE
+LINK_OPTIONS = $(LINK_OPTIONS) /OPT:NOICF
 !ENDIF
 
 OBJECTS = \

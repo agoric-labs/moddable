@@ -106,9 +106,7 @@
 		#define mxUsePOSIXThreads 1
 	#endif
 	#define mxMachinePlatform \
-		void* waiterCondition; \
-		void* waiterData; \
-		txMachine* waiterLink;
+		void* host;
 	#define mxUseDefaultMachinePlatform 1
 	#define mxUseDefaultBuildKeys 1
 	#define mxUseDefaultChunkAllocation 1
@@ -394,7 +392,9 @@
 #ifndef c_atanh
 	#define c_atanh atanh
 #endif
+#ifndef c_atan2
 	#define c_atan2 atan2
+#endif
 #ifndef c_cbrt
 	#define c_cbrt cbrt
 #endif
@@ -410,7 +410,9 @@
 #ifndef c_exp
 	#define c_exp exp
 #endif
+#ifndef c_expm1
 	#define c_expm1 expm1
+#endif
 #ifndef c_fabs
 	#define c_fabs fabs
 #endif
@@ -599,20 +601,18 @@
 	#define C_EINVAL EINVAL
 #endif
 
-#ifdef mxParse
-	#if mxWindows
-		#ifdef __cplusplus
-		extern "C" {
-		#endif
-			extern char* c_realpath(const char* path, char* real);
-		#ifdef __cplusplus
-		}
-		#endif
-		#define mxParserThrowElse(_ASSERTION) { if (!(_ASSERTION)) { parser->error = GetLastError(); c_longjmp(parser->firstJump->jmp_buf, 1); } }
-	#else
-		#define c_realpath realpath
-		#define mxParserThrowElse(_ASSERTION) { if (!(_ASSERTION)) { parser->error = errno; c_longjmp(parser->firstJump->jmp_buf, 1); } }
+#if mxWindows
+	#ifdef __cplusplus
+	extern "C" {
 	#endif
+		extern char* c_realpath(const char* path, char* real);
+	#ifdef __cplusplus
+	}
+	#endif
+	#define mxParserThrowElse(_ASSERTION) { if (!(_ASSERTION)) { parser->error = GetLastError(); c_longjmp(parser->firstJump->jmp_buf, 1); } }
+#else
+	#define c_realpath realpath
+	#define mxParserThrowElse(_ASSERTION) { if (!(_ASSERTION)) { parser->error = errno; c_longjmp(parser->firstJump->jmp_buf, 1); } }
 #endif
 
 #endif /* __XSPLATFORM__ */

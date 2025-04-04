@@ -185,8 +185,7 @@ void PiuCodeDictionary(xsMachine* the, void* it)
 	slot = PiuString(xsResult);
 	string = PiuToString(slot);
 	(*self)->string = slot;
-	(*self)->size = c_strlen(string);
-	(*self)->length = fxUnicodeLength(string);
+	(*self)->length = fxUnicodeLength(string, (xsIntegerValue*)&((*self)->size));
 	if (xsFindString(xsArg(1), xsID_type, &string)) {
 		if (!c_strcmp(string, "js"))
 			(*self)->type = 1;
@@ -961,8 +960,7 @@ void PiuCode_set_string(xsMachine *the)
 	xsSlot* slot = PiuString(xsArg(0));
 	xsStringValue string = PiuToString(slot);
 	(*self)->string = slot;
-	(*self)->size = c_strlen(string);
-	(*self)->length = fxUnicodeLength(string);
+	(*self)->length = fxUnicodeLength(string, (xsIntegerValue*)&((*self)->size));
 	PiuCodeFormat(self);
 	PiuCodeSearch(self, (*self)->size);
 	PiuCodeSelect(self, (*self)->from, (*self)->to - (*self)->from);
@@ -987,18 +985,21 @@ void PiuCode_set_type(xsMachine *the)
 void PiuCode_colorize(xsMachine *the)
 {
 	PiuCode* self = PIU(Code, xsThis);
+	xsStringValue string = PiuToString((*self)->string);
 	PiuTextBuffer* runs = (*self)->runs;
 	PiuCodeRun run = (PiuCodeRun)((uint8_t*)(*runs) + sizeof(PiuTextBufferRecord));
 	PiuCodeRun limit = (PiuCodeRun)((uint8_t*)(*runs) + (*runs)->current);
-	int32_t start = 0, offset;
+	int32_t start = 0, offset, unicodeOffset = 0, utf8Offset = 0;
 	int16_t color;
 	xsIntegerValue c = xsToInteger(xsGet(xsArg(0), xsID_length)), i;
 	for (i = 0; i < c; i++) {
 		xsResult = xsGetAt(xsArg(0), xsInteger(i));
 		offset = xsToInteger(xsGet(xsResult, xsID_offset));
+		utf8Offset += fxUnicodeToUTF8Offset(string + utf8Offset, offset - unicodeOffset);
+		unicodeOffset = offset;
 		color = (int16_t)xsToInteger(xsGet(xsResult, xsID_color));
 		while (run < limit) {
-			if ((start == offset) && (run->kind == piuCodeColorKind)) {
+			if ((start == utf8Offset) && (run->kind == piuCodeColorKind)) {
 				run->color = color;
 				break;
 			}

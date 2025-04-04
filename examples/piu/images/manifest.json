@@ -1,7 +1,8 @@
 {
 	"include": [
 		"$(MODDABLE)/examples/manifest_base.json",
-		"$(MODDABLE)/examples/manifest_piu.json"
+		"$(MODDABLE)/examples/manifest_piu.json",
+		"$(MODDABLE)/modules/piu/MC/colorcell/manifest.json"
 	],
 	"modules": {
 		"*": "./main"
@@ -30,6 +31,11 @@
 		"esp32": {
 			"config": {
 				"rotation": 90
+			}
+		},
+		"esp32/esp32c6_gc9a01": {
+			"config": {
+				"rotation": 0
 			}
 		}
 	}

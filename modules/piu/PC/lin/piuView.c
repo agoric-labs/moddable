@@ -438,6 +438,9 @@ static void PiuViewAdjustAux(GtkWidget *widget, gpointer it)
 		PiuRectangleRecord bounds = (*content)->bounds;
 		PiuRectangleRecord clipBounds = bounds;
 		PiuContainer* container = (*content)->container;
+		GtkRequisition minimum;
+		GtkRequisition natural;
+		
 		while (container) {
 			bounds.x += (*container)->bounds.x;
 			bounds.y += (*container)->bounds.y;
@@ -447,15 +450,21 @@ static void PiuViewAdjustAux(GtkWidget *widget, gpointer it)
 				PiuRectangleIntersect(&clipBounds, &clipBounds, &(*container)->bounds);
 			container = (*container)->container;
 		}
-		gtk_fixed_move(gtkFixed, widget, clipBounds.x, clipBounds.y);
+		double x = clipBounds.x;
+		double y = clipBounds.y;
+		gtk_fixed_move(gtkFixed, widget, x, y);
 		gtk_widget_set_size_request(widget, clipBounds.width, clipBounds.height);
-		widget = gtkClip->widget;
-		gtk_widget_set_size_request(widget, bounds.width, bounds.height);
-		if (PiuRectangleContains(&clipBounds, &bounds))
-    		gtk_widget_show(widget);
+		gtk_widget_set_size_request(gtkClip->widget, bounds.width, bounds.height);
+		if (PiuRectangleContains(&clipBounds, &bounds)) {
+    		gtk_widget_show(gtkClip->widget);
+			gtk_widget_get_preferred_size(gtkClip->widget, &minimum, &natural);
+			if (minimum.height > bounds.height) {
+				y -= (minimum.height - bounds.height) / 2;
+				gtk_fixed_move(gtkFixed, widget, x, y);
+			}
+    	}
 		else
-	    	gtk_widget_hide(widget);
-    	
+	    	gtk_widget_hide(gtkClip->widget);
 	}
 }
 
@@ -764,7 +773,7 @@ void PiuViewGetSize(PiuView* self, PiuDimension *width, PiuDimension *height)
 	//fprintf(stderr, "PiuViewGetSize %d %d\n", *width, *height);
 }
 
-static gboolean PiuViewIdle(gpointer data)
+static gboolean PiuViewIdle(GtkWidget* widget, GdkFrameClock* frame_clock, gpointer data)
 {
 	PiuView* self = data;
 	xsBeginHost((*self)->the);
@@ -785,10 +794,10 @@ void PiuViewIdleCheck(PiuView* self, PiuInterval idle)
 	PiuBoolean running = (idle > 0) ? 1 : 0;
 	if ((*self)->running != running) {
 		(*self)->running = running;
-		if (idle)
-			(*self)->timer = g_timeout_add(20, PiuViewIdle, self);
+		if (running)
+			(*self)->timer = gtk_widget_add_tick_callback((*self)->gtkView, PiuViewIdle, self, NULL); 
 		else
-			g_source_remove((*self)->timer);
+			gtk_widget_remove_tick_callback((*self)->gtkView, (*self)->timer);
 	}
 }
 

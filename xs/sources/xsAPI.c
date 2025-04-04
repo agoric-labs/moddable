@@ -53,7 +53,7 @@ txKind fxTypeOf(txMachine* the, txSlot* theSlot)
 		return XS_STRING_KIND;
 	if (theSlot->kind == XS_BIGINT_X_KIND)
 		return XS_BIGINT_KIND;
-#ifdef mxHostFunctionPrimitive
+#if mxHostFunctionPrimitive
 	if (theSlot->kind == XS_HOST_FUNCTION_KIND)
 		return XS_REFERENCE_KIND;
 #endif
@@ -120,7 +120,7 @@ txBoolean fxToBoolean(txMachine* the, txSlot* theSlot)
 		else
 			theSlot->value.boolean = 1;
 		break;
-#ifdef mxHostFunctionPrimitive
+#if mxHostFunctionPrimitive
 	case XS_HOST_FUNCTION_KIND:
 #endif
 	case XS_SYMBOL_KIND:
@@ -129,7 +129,7 @@ txBoolean fxToBoolean(txMachine* the, txSlot* theSlot)
 		theSlot->value.boolean = 1;
 		break;
 	default:
-		mxTypeError("Cannot coerce to boolean");
+		mxTypeError("cannot coerce to boolean");
 		break;
 	}
 	return theSlot->value.boolean;
@@ -187,17 +187,17 @@ again:
 	case XS_STRING_KIND:
 	case XS_STRING_X_KIND:
 		theSlot->kind = XS_NUMBER_KIND;
-		theSlot->value.number = fxStringToNumber(the->dtoa, theSlot->value.string, 1);
+		theSlot->value.number = fxStringToNumber(the, theSlot->value.string, 1);
 		mxMeterOne();
 		goto again;
 	case XS_SYMBOL_KIND:
-		mxTypeError("Cannot coerce symbol to integer");
+		mxTypeError("cannot coerce symbol to integer");
 		break;
 	case XS_REFERENCE_KIND:
 		fxToPrimitive(the, theSlot, XS_NUMBER_HINT);
 		goto again;
 	default:
-		mxTypeError("Cannot coerce to integer");
+		mxTypeError("cannot coerce to integer");
 		break;
 	}
 	return theSlot->value.integer;
@@ -238,17 +238,17 @@ again:
 	case XS_STRING_KIND:
 	case XS_STRING_X_KIND:
 		theSlot->kind = XS_NUMBER_KIND;
-		theSlot->value.number = fxStringToNumber(the->dtoa, theSlot->value.string, 1);
+		theSlot->value.number = fxStringToNumber(the, theSlot->value.string, 1);
 		mxMeterOne();
 		break;
 	case XS_SYMBOL_KIND:
-		mxTypeError("Cannot coerce symbol to number");
+		mxTypeError("cannot coerce symbol to number");
 		break;
 	case XS_REFERENCE_KIND:
 		fxToPrimitive(the, theSlot, XS_NUMBER_HINT);
 		goto again;
 	default:
-		mxTypeError("Cannot coerce to number");
+		mxTypeError("cannot coerce to number");
 		break;
 	}
 	return theSlot->value.number;
@@ -298,15 +298,15 @@ again:
 			fxStringX(the, theSlot, "true");
 		break;
 	case XS_INTEGER_KIND:
-		fxCopyStringC(the, theSlot, fxIntegerToString(the->dtoa, theSlot->value.integer, aBuffer, sizeof(aBuffer)));
+		fxCopyStringC(the, theSlot, fxIntegerToString(the, theSlot->value.integer, aBuffer, sizeof(aBuffer)));
 		mxMeterOne();
 		break;
 	case XS_NUMBER_KIND:
-		fxCopyStringC(the, theSlot, fxNumberToString(the->dtoa, theSlot->value.number, aBuffer, sizeof(aBuffer), 0, 0));
+		fxCopyStringC(the, theSlot, fxNumberToString(the, theSlot->value.number, aBuffer, sizeof(aBuffer), 0, 0));
 		mxMeterOne();
 		break;
 	case XS_SYMBOL_KIND:
-		mxTypeError("Cannot coerce symbol to string");
+		mxTypeError("cannot coerce symbol to string");
 		break;
 	case XS_BIGINT_KIND:
 	case XS_BIGINT_X_KIND:
@@ -319,7 +319,7 @@ again:
 		fxToPrimitive(the, theSlot, XS_STRING_HINT);
 		goto again;
 	default:
-		mxTypeError("Cannot coerce to string");
+		mxTypeError("cannot coerce to string");
 		break;
 	}
 	return theSlot->value.string;
@@ -333,7 +333,7 @@ txString fxToStringBuffer(txMachine* the, txSlot* theSlot, txString theBuffer, t
 	aString = fxToString(the, theSlot);
 	aSize = mxStringLength(aString) + 1;
 	if (aSize > theSize)
-		mxRangeError("Cannot buffer string");
+		mxRangeError("cannot buffer string");
 	c_memcpy(theBuffer, aString, aSize);
 	return theBuffer;
 }
@@ -402,19 +402,19 @@ again:
 	case XS_STRING_KIND:
 	case XS_STRING_X_KIND:
 		theSlot->kind = XS_NUMBER_KIND;
-		theSlot->value.number = fxStringToNumber(the->dtoa, theSlot->value.string, 1);
+		theSlot->value.number = fxStringToNumber(the, theSlot->value.string, 1);
 		mxMeterOne();
 		goto again;
 	case XS_SYMBOL_KIND:
 		result = 0;
-		mxTypeError("Cannot coerce symbol to unsigned");
+		mxTypeError("cannot coerce symbol to unsigned");
 		break;
 	case XS_REFERENCE_KIND:
 		fxToPrimitive(the, theSlot, XS_NUMBER_HINT);
 		goto again;
 	default:
 		result = 0;
-		mxTypeError("Cannot coerce to unsigned");
+		mxTypeError("cannot coerce to unsigned");
 		break;
 	}
 	return result;
@@ -545,7 +545,7 @@ void fxBuildHosts(txMachine* the, txInteger c, const txHostFunctionBuilder* buil
 	fxArrayCacheBegin(the, the->stack);
 	while (c) {
 		if (builder->length >= 0) {
-		#ifdef mxHostFunctionPrimitive
+		#if mxHostFunctionPrimitive
 			mxPushUndefined();
 			the->stack->kind = XS_HOST_FUNCTION_KIND;
 			the->stack->value.hostFunction.builder = builder;
@@ -707,10 +707,10 @@ txInteger fxGetHostBufferLength(txMachine* the, txSlot* slot)
 		if (host->flag & XS_HOST_CHUNK_FLAG)
 			mxSyntaxError("C: xsGetHostBufferLength: no host data");
 		if (!bufferInfo || (bufferInfo->kind != XS_BUFFER_INFO_KIND))
-			mxSyntaxError("C: xsGetHostBufferLength: no host buffer");
+			mxSyntaxError("C: xsGetHostBufferLength: not a host buffer");
 		return bufferInfo->value.bufferInfo.length;
 	}
-	mxSyntaxError("C: xsGetHostData: no host object");
+	mxSyntaxError("C: xsGetHostData: not a host object");
 	return 0;
 }
 
@@ -722,22 +722,7 @@ void* fxGetHostChunk(txMachine* the, txSlot* slot)
 			return host->value.host.data;
 		mxSyntaxError("C: xsGetHostChunk: no host data");
 	}
-	mxSyntaxError("C: xsGetHostChunk: no host object");
-	return NULL;
-}
-
-void* fxGetHostChunkValidate(txMachine* the, txSlot* slot, void* validator)
-{
-	txSlot* host = fxCheckHostObject(the, slot);
-	if (host) {
-		if (host->flag & XS_HOST_CHUNK_FLAG) {
-			if (validator == host->value.host.variant.destructor)
-				return host->value.host.data;
-			mxSyntaxError("C: xsGetHostChunk: invalid");
-		}
-		mxSyntaxError("C: xsGetHostChunk: no host data");
-	}
-	mxSyntaxError("C: xsGetHostChunk: no host object");
+	mxSyntaxError("C: xsGetHostChunk: not a host object");
 	return NULL;
 }
 
@@ -751,6 +736,21 @@ void* fxGetHostChunkIf(txMachine* the, txSlot* slot)
 	return NULL;
 }
 
+void* fxGetHostChunkValidate(txMachine* the, txSlot* slot, void* validator)
+{
+	txSlot* host = fxCheckHostObject(the, slot);
+	if (host) {
+		if (host->flag & XS_HOST_CHUNK_FLAG) {
+			if (validator == host->value.host.variant.destructor)
+				return host->value.host.data;
+			mxSyntaxError("C: xsGetHostChunk: invalid host data");
+		}
+		mxSyntaxError("C: xsGetHostChunk: no host data");
+	}
+	mxSyntaxError("C: xsGetHostChunk: not a host object");
+	return NULL;
+}
+
 void* fxGetHostData(txMachine* the, txSlot* slot)
 {
 	txSlot* host = fxCheckHostObject(the, slot);
@@ -759,22 +759,7 @@ void* fxGetHostData(txMachine* the, txSlot* slot)
 			return host->value.host.data;
 		mxSyntaxError("C: xsGetHostData: no host data");
 	}
-	mxSyntaxError("C: xsGetHostData: no host object");
-	return NULL;
-}
-
-void* fxGetHostDataValidate(txMachine* the, txSlot* slot, void* validator)
-{
-	txSlot* host = fxCheckHostObject(the, slot);
-	if (host) {
-		if (!(host->flag & XS_HOST_CHUNK_FLAG)) {
-			if (validator == host->value.host.variant.destructor)
-				return host->value.host.data;
-			mxSyntaxError("C: xsGetHostData: invalid");
-		}
-		mxSyntaxError("C: xsGetHostData: no host data");
-	}
-	mxSyntaxError("C: xsGetHostData: no host object");
+	mxSyntaxError("C: xsGetHostData: not a host object");
 	return NULL;
 }
 
@@ -788,6 +773,21 @@ void* fxGetHostDataIf(txMachine* the, txSlot* slot)
 	return NULL;
 }
 
+void* fxGetHostDataValidate(txMachine* the, txSlot* slot, void* validator)
+{
+	txSlot* host = fxCheckHostObject(the, slot);
+	if (host) {
+		if (!(host->flag & XS_HOST_CHUNK_FLAG)) {
+			if (validator == host->value.host.variant.destructor)
+				return host->value.host.data;
+			mxSyntaxError("C: xsGetHostData: invalid host data");
+		}
+		mxSyntaxError("C: xsGetHostData: no host data");
+	}
+	mxSyntaxError("C: xsGetHostData: not a host object");
+	return NULL;
+}
+
 txDestructor fxGetHostDestructor(txMachine* the, txSlot* slot)
 {
 	txSlot* host = fxCheckHostObject(the, slot);
@@ -796,7 +796,7 @@ txDestructor fxGetHostDestructor(txMachine* the, txSlot* slot)
 			return host->value.host.variant.destructor;
 		mxSyntaxError("C: xsGetHostDestructor: no host destructor");
 	}
-	mxSyntaxError("C: xsGetHostDestructor: no host object");
+	mxSyntaxError("C: xsGetHostDestructor: not a host object");
 	return NULL;
 }
 
@@ -806,7 +806,7 @@ void* fxGetHostHandle(txMachine* the, txSlot* slot)
 	if (host) {
 		return &host->value.host.data;
 	}
-	mxSyntaxError("C: xsGetHostData: no host object");
+	mxSyntaxError("C: xsGetHostData: not a host object");
 	return NULL;
 }
 
@@ -818,7 +818,33 @@ txHostHooks* fxGetHostHooks(txMachine* the, txSlot* slot)
 			return host->value.host.variant.hooks;
 		mxSyntaxError("C: xsGetHostHooks: no host hooks");
 	}
-	mxSyntaxError("C: xsGetHostHooks: no host object");
+	mxSyntaxError("C: xsGetHostHooks: not a host object");
+	return NULL;
+}
+
+txHostHooks* fxGetHostHooksIf(txMachine* the, txSlot* slot)
+{
+	txSlot* host = fxCheckHostObject(the, slot);
+	if (host) {
+		if (host->flag & XS_HOST_HOOKS_FLAG)
+			return host->value.host.variant.hooks;
+	}
+	return NULL;
+}
+
+txHostHooks* fxGetHostHooksValidate(txMachine* the, txSlot* slot, txString validator)
+{
+	txSlot* host = fxCheckHostObject(the, slot);
+	if (host) {
+		if (host->flag & XS_HOST_HOOKS_FLAG) {
+			txString signature = host->value.host.variant.hooks->signature;
+			if ((signature != C_NULL) && (!c_strcmp(signature, validator)))
+				return host->value.host.variant.hooks;
+			mxSyntaxError("C: xsGetHostHooks: invalid");
+		}
+		mxSyntaxError("C: xsGetHostHooks: no host hooks");
+	}
+	mxSyntaxError("C: xsGetHostHooks: not a host object");
 	return NULL;
 }
 
@@ -826,7 +852,7 @@ void fxPetrifyHostBuffer(txMachine* the, txSlot* slot)
 {
 	txSlot* host = fxCheckHostObject(the, slot);
 	if (!host)
-		mxSyntaxError("C: xsPetrifyHostBuffer: no host object");
+		mxSyntaxError("C: xsPetrifyHostBuffer: not a host object");
 	if (host->flag & XS_HOST_CHUNK_FLAG)
 		mxSyntaxError("C: xsPetrifyHostBuffer: no host data");
 	host->flag |= XS_DONT_SET_FLAG;
@@ -851,7 +877,7 @@ void fxSetHostBuffer(txMachine* the, txSlot* slot, void* theData, txSize theSize
 		bufferInfo->value.bufferInfo.length = theSize;
 	}
 	else
-		mxSyntaxError("C: xsSetHostData: no host object");
+		mxSyntaxError("C: xsSetHostBuffer: not a host object");
 }
 
 void *fxSetHostChunk(txMachine* the, txSlot* slot, void* theValue, txSize theSize)
@@ -859,15 +885,19 @@ void *fxSetHostChunk(txMachine* the, txSlot* slot, void* theValue, txSize theSiz
 	txSlot* host = fxCheckHostObject(the, slot);
 	if (host) {
 		host->flag |= XS_HOST_CHUNK_FLAG;
-		host->value.host.data = fxNewChunk(the, theSize);
-		if (theValue)
-			c_memcpy(host->value.host.data, theValue, theSize);
+		if (theSize) {
+			host->value.host.data = fxNewChunk(the, theSize);
+			if (theValue)
+				c_memcpy(host->value.host.data, theValue, theSize);
+			else
+				c_memset(host->value.host.data, 0, theSize);
+		}
 		else
-			c_memset(host->value.host.data, 0, theSize);
+			host->value.host.data = NULL;
 		return host->value.host.data;
 	}
 	else
-		mxSyntaxError("C: xsSetHostData: no host object");
+		mxSyntaxError("C: xsSetHostData: not a host object");
 
 	return NULL;
 }
@@ -880,7 +910,7 @@ void fxSetHostData(txMachine* the, txSlot* slot, void* theData)
 		host->value.host.data = theData;
 	}
 	else
-		mxSyntaxError("C: xsSetHostData: no host object");
+		mxSyntaxError("C: xsSetHostData: not a host object");
 }
 
 void fxSetHostDestructor(txMachine* the, txSlot* slot, txDestructor theDestructor)
@@ -891,7 +921,7 @@ void fxSetHostDestructor(txMachine* the, txSlot* slot, txDestructor theDestructo
 		host->value.host.variant.destructor = theDestructor;
 	}
 	else
-		mxSyntaxError("C: xsSetHostDestructor: no host object");
+		mxSyntaxError("C: xsSetHostDestructor: not a host object");
 }
 
 void fxSetHostHooks(txMachine* the, txSlot* slot, const txHostHooks* theHooks)
@@ -902,7 +932,7 @@ void fxSetHostHooks(txMachine* the, txSlot* slot, const txHostHooks* theHooks)
 		host->value.host.variant.hooks = (txHostHooks *) theHooks;
 	}
 	else
-		mxSyntaxError("C: xsSetHostHooks: no host object");
+		mxSyntaxError("C: xsSetHostHooks: not a host object");
 }
 
 /* Identifiers */
@@ -944,18 +974,20 @@ void fxEnumerate(txMachine* the)
 	mxRunCount(0);
 }
 
-void fxGetAll(txMachine* the, txID id, txIndex index)
+void fxGetAll(txMachine* the, txSlot* stack, txID id, txIndex index)
 {
-	txBoolean flag = mxIsReference(the->stack) ? 1 : 0;
-	txSlot* instance = (flag) ? the->stack->value.reference : fxToInstance(the, the->stack);
+	txBoolean flag = mxIsReference(stack) ? 1 : 0;
+	txSlot* instance = (flag) ? stack->value.reference : fxToInstance(the, stack);
 	txSlot* property = mxBehaviorGetProperty(the, instance, (txID)id, index, XS_ANY);
 	if (!property) {
-		the->stack->kind = XS_UNDEFINED_KIND;
+		the->stack = stack;
+		stack->kind = XS_UNDEFINED_KIND;
 	}
 	else if (property->kind == XS_ACCESSOR_KIND) {
 		txSlot* function = property->value.accessor.getter;
 		if (mxIsFunction(function)) {
 			txSlot* slot;
+			the->stack = stack;
 			mxOverflow(-5);
             the->stack -= 5;
 			slot = the->stack;
@@ -972,12 +1004,15 @@ void fxGetAll(txMachine* the, txID id, txIndex index)
 			}
 			mxRunCount(0);
 		}
-		else
-			the->stack->kind = XS_UNDEFINED_KIND;
+		else {
+			the->stack = stack;
+			stack->kind = XS_UNDEFINED_KIND;
+		}
 	}
 	else {
-		the->stack->kind = property->kind;
-		the->stack->value = property->value;
+		the->stack = stack;
+		stack->kind = property->kind;
+		stack->value = property->value;
 	}
 }
 
@@ -998,10 +1033,11 @@ void fxGetIndex(txMachine* the, txIndex index)
 	mxGetAll(XS_NO_ID, index);
 }
 
-txBoolean fxHasAll(txMachine* the, txID id, txIndex index)
+txBoolean fxHasAll(txMachine* the, txSlot* stack, txID id, txIndex index)
 {
-	txSlot* instance = fxToInstance(the, the->stack);
+	txSlot* instance = fxToInstance(the, stack);
 	txBoolean result = mxBehaviorHasProperty(the, instance, id, index);
+	the->stack = stack;
 	mxPop();
 	return result;
 }
@@ -1009,25 +1045,24 @@ txBoolean fxHasAll(txMachine* the, txID id, txIndex index)
 txBoolean fxHasAt(txMachine* the)
 {
 	txSlot* at = fxAt(the, the->stack);
-	mxPop();
-	return mxHasAll(at->value.at.id, at->value.at.index);
+	return fxHasAll(the, the->stack + 1, at->value.at.id, at->value.at.index);
 }
 
 txBoolean fxHasID(txMachine* the, txID id)
 {
-	return mxHasAll(id, 0);
+	return fxHasAll(the, the->stack, id, 0);
 }
 
 txBoolean fxHasIndex(txMachine* the, txIndex index)
 {
-	return mxHasAll(XS_NO_ID, index);
+	return fxHasAll(the, the->stack, XS_NO_ID, index);
 }
 
-void fxSetAll(txMachine* the, txID id, txIndex index)
+void fxSetAll(txMachine* the, txSlot* stack, txID id, txIndex index)
 {
-	txSlot* value = the->stack + 1;
-	txSlot* instance = fxToInstance(the, the->stack);
-	txSlot* property = mxBehaviorSetProperty(the, instance, (txID)id, index, XS_ANY);
+	txSlot* value = stack + 1;
+	txSlot* instance = fxToInstance(the, stack);
+	txSlot* property = mxBehaviorSetProperty(the, instance, id, index, XS_ANY);
 	if (!property)
 		mxDebugID(XS_TYPE_ERROR, "C: xsSet %s: not extensible", id);
 	if (property->kind == XS_ACCESSOR_KIND) {
@@ -1035,6 +1070,7 @@ void fxSetAll(txMachine* the, txID id, txIndex index)
 		txSlot* function = property->value.accessor.setter;
 		if (!mxIsFunction(function))
 			mxDebugID(XS_TYPE_ERROR, "C: xsSet %s: no setter", id);
+		the->stack = stack;
 		mxOverflow(-5);
 		the->stack -= 5;
 		slot = the->stack;
@@ -1056,6 +1092,7 @@ void fxSetAll(txMachine* the, txID id, txIndex index)
 			mxDebugID(XS_TYPE_ERROR, "C: xsSet %s: not writable", id);
 		property->kind = value->kind;
 		property->value = value->value;
+		the->stack = stack;
 		mxPop();
 	}
 }
@@ -1063,54 +1100,47 @@ void fxSetAll(txMachine* the, txID id, txIndex index)
 void fxSetAt(txMachine* the)
 {
 	txSlot* at = fxAt(the, the->stack);
-	mxPop();
-	mxSetAll(at->value.at.id, at->value.at.index);
+	fxSetAll(the, the->stack + 1, at->value.at.id, at->value.at.index);
 }
 
 void fxSetID(txMachine* the, txID id)
 {
-	mxSetAll(id, 0);
+	fxSetAll(the, the->stack, id, 0);
 }
 
 void fxSetIndex(txMachine* the, txIndex index)
 {
-	mxSetAll(XS_NO_ID, index);
+	fxSetAll(the, the->stack, XS_NO_ID, index);
 }
 
-void fxDeleteAll(txMachine* the, txID id, txIndex index)
+void fxDeleteAll(txMachine* the, txSlot* stack, txID id, txIndex index)
 {
-	txSlot* instance = fxToInstance(the, the->stack);
-	if (!mxBehaviorDeleteProperty(the, instance, (txID)id, index))
+	txSlot* instance = fxToInstance(the, stack);
+	if (!mxBehaviorDeleteProperty(the, instance, id, index))
 		mxDebugID(XS_TYPE_ERROR, "delete %s: not configurable", id);
+	the->stack = stack;
 }
 
 void fxDeleteAt(txMachine* the)
 {
 	txSlot* at = fxAt(the, the->stack);
-	txSlot* instance = fxToInstance(the, the->stack + 1);
-	mxPop();
-	if (!mxBehaviorDeleteProperty(the, instance, at->value.at.id, at->value.at.index))
-		mxDebugID(XS_TYPE_ERROR, "delete %s: not configurable", at->value.at.id);
+	fxDeleteAll(the, the->stack + 1, at->value.at.id, at->value.at.index);
 }
 
 void fxDeleteID(txMachine* the, txID id)
 {
-	txSlot* instance = fxToInstance(the, the->stack);
-	if (!mxBehaviorDeleteProperty(the, instance, (txID)id, 0))
-		mxDebugID(XS_TYPE_ERROR, "delete %s: not configurable", id);
+	fxDeleteAll(the, the->stack, id, 0);
 }
 
 void fxDeleteIndex(txMachine* the, txIndex index)
 {
-	txSlot* instance = fxToInstance(the, the->stack);
-	if (!mxBehaviorDeleteProperty(the, instance, XS_NO_ID, index))
-		mxTypeError("delete %ld: not configurable", index);
+	fxDeleteAll(the, the->stack, XS_NO_ID, index);
 }
 
-void fxDefineAll(txMachine* the, txID id, txIndex index, txFlag flag, txFlag mask)
+void fxDefineAll(txMachine* the, txSlot* stack, txID id, txIndex index, txFlag flag, txFlag mask)
 {
-	txSlot* instance = fxToInstance(the, the->stack);
-	txSlot* slot = the->stack + 1;
+	txSlot* instance = fxToInstance(the, stack);
+	txSlot* slot = stack + 1;
 	if (mask & XS_GETTER_FLAG) {
 		slot->value.accessor.getter = slot->value.reference;
 		slot->value.accessor.setter = C_NULL;
@@ -1124,23 +1154,24 @@ void fxDefineAll(txMachine* the, txID id, txIndex index, txFlag flag, txFlag mas
 	slot->flag = flag & XS_GET_ONLY;
 	if (!mxBehaviorDefineOwnProperty(the, instance, id, index, slot, mask))
 		mxTypeError("define %ld: not configurable", id);
+	the->stack = stack;
 	mxPop();
 }
 
 void fxDefineAt(txMachine* the, txFlag flag, txFlag mask)
 {
-	txSlot* at = fxAt(the, the->stack++);
-	mxDefineAll(at->value.at.id, at->value.at.index, flag, mask);
+	txSlot* at = fxAt(the, the->stack);
+	fxDefineAll(the, the->stack + 1, at->value.at.id, at->value.at.index, flag, mask);
 }
 
 void fxDefineID(txMachine* the, txID id, txFlag flag, txFlag mask)
 {
-	mxDefineAll(id, 0, flag, mask);
+	fxDefineAll(the, the->stack, id, 0, flag, mask);
 }
 
 void fxDefineIndex(txMachine* the, txIndex index, txFlag flag, txFlag mask)
 {
-	mxDefineAll(XS_NO_ID, index, flag, mask);
+	fxDefineAll(the, the->stack, XS_NO_ID, index, flag, mask);
 }
 
 void fxCall(txMachine* the)
@@ -1306,17 +1337,22 @@ void fxThrowMessage(txMachine* the, txString path, txInteger line, txError error
 	txSize length = 0;
     va_list arguments;
     txSlot* slot;
-#ifdef mxDebug
-	fxBufferFrameName(the, message, sizeof(message), the->frame, ": ");
-	length = mxStringLength(message);
-#endif
     va_start(arguments, format);
-    c_vsnprintf(message + length, sizeof(message) - length, format, arguments);
+    c_vsnprintf(message, sizeof(message), format, arguments);
     va_end(arguments);
 
+	//??
 	length = (txSize)c_strlen(message) - 1;
 	while (length && (0x80 & message[length]))
 		message[length--] = 0;
+		
+#ifdef mxDebug
+ 	if (!the->debugEval) {
+		c_strncat(message, " (in ", sizeof(message) - mxStringLength(message) - 1);
+		length = (txSize)c_strlen(message);
+		fxBufferFrameName(the, message + length, sizeof(message) - length, the->frame, ")");
+	}
+#endif
 
 	if ((error <= XS_NO_ERROR) || (XS_ERROR_COUNT <= error))
 		error = XS_UNKNOWN_ERROR;
@@ -1336,7 +1372,7 @@ void fxThrowMessage(txMachine* the, txString path, txInteger line, txError error
 		gxDefaults.captureErrorStack(the, slot, the->frame);
 	slot = fxNextStringProperty(the, slot, message, mxID(_message), XS_DONT_ENUM_FLAG);
 #ifdef mxDebug
-	fxDebugThrow(the, path, line, message);
+	fxDebugThrow(the, path, line, "throw");
 #endif
 	fxJump(the);
 }
@@ -1372,9 +1408,8 @@ txMachine* fxCreateMachine(txCreation* theCreation, txString theName, void* theC
 			txSlot* slot;
 
 			if (gxDefaults.initializeSharedCluster)
-				gxDefaults.initializeSharedCluster();
+				gxDefaults.initializeSharedCluster(the);
 				
-			the->dtoa = fxNew_dtoa(the);
 			the->context = theContext;
 			fxCreateMachinePlatform(the);
 
@@ -1478,11 +1513,11 @@ txMachine* fxCreateMachine(txCreation* theCreation, txString theName, void* theC
 			slot = fxLastProperty(the, fxNewGlobalInstance(the));
 	#endif
 			for (id = XS_SYMBOL_ID_COUNT; id < _Infinity; id++)
-				slot = fxNextSlotProperty(the, slot, &the->stackPrototypes[-1 - id], mxID(id), XS_DONT_ENUM_FLAG);
+				slot = fxNextSlotProperty(the, slot, &the->stackIntrinsics[-1 - id], mxID(id), XS_DONT_ENUM_FLAG);
 			for (; id < _Compartment; id++)
-				slot = fxNextSlotProperty(the, slot, &the->stackPrototypes[-1 - id], mxID(id), XS_GET_ONLY);
+				slot = fxNextSlotProperty(the, slot, &the->stackIntrinsics[-1 - id], mxID(id), XS_GET_ONLY);
 			for (; id < XS_INTRINSICS_COUNT; id++)
-				slot = fxNextSlotProperty(the, slot, &the->stackPrototypes[-1 - id], mxID(id), XS_DONT_ENUM_FLAG);
+				slot = fxNextSlotProperty(the, slot, &the->stackIntrinsics[-1 - id], mxID(id), XS_DONT_ENUM_FLAG);
 			slot = fxNextSlotProperty(the, slot, the->stack, mxID(_global), XS_DONT_ENUM_FLAG);
 			slot = fxNextSlotProperty(the, slot, the->stack, mxID(_globalThis), XS_DONT_ENUM_FLAG);
 			mxGlobal.value = the->stack->value;
@@ -1514,12 +1549,11 @@ txMachine* fxCreateMachine(txCreation* theCreation, txString theName, void* theC
 			the->firstJump = C_NULL;
 		}
 		else {
+			if (gxDefaults.terminateSharedCluster)
+				gxDefaults.terminateSharedCluster(the);
 			fxFree(the);
 			c_free(the);
 			the = NULL;
-			
-			if (gxDefaults.terminateSharedCluster)
-				gxDefaults.terminateSharedCluster();
 		}
 	}
 	return the;
@@ -1566,13 +1600,11 @@ void fxDeleteMachine(txMachine* the)
 		aSlot = aSlot->next;
 	}
 #endif
-	fxDelete_dtoa(the->dtoa);
 	fxDeleteMachinePlatform(the);
+	if (gxDefaults.terminateSharedCluster)
+		gxDefaults.terminateSharedCluster(the);
 	fxFree(the);
 	c_free(the);
-
-	if (gxDefaults.terminateSharedCluster)
-		gxDefaults.terminateSharedCluster();
 }
 
 #if mxAliasInstance
@@ -1594,12 +1626,10 @@ txMachine* fxCloneMachine(txCreation* theCreation, txMachine* theMachine, txStri
 			txSlot* slot;
 
 			if (gxDefaults.initializeSharedCluster)
-				gxDefaults.initializeSharedCluster();
+				gxDefaults.initializeSharedCluster(the);
 
-			the->dtoa = fxNew_dtoa(the);
 			the->preparation = theMachine->preparation;
 			the->context = theContext;
-			the->archive = theMachine->archive;
 			the->sharedMachine = theMachine;
 			fxCreateMachinePlatform(the);
 
@@ -1616,7 +1646,6 @@ txMachine* fxCloneMachine(txCreation* theCreation, txMachine* theMachine, txStri
 			the->keyIndex = theMachine->keyIndex;
 			the->keyOffset = the->keyIndex;
 			the->keyArrayHost = theMachine->keyArray;
-			fxBuildArchiveKeys(the);
 			
 			the->aliasCount = theMachine->aliasCount;
 			if (the->aliasCount) {
@@ -1654,7 +1683,8 @@ txMachine* fxCloneMachine(txCreation* theCreation, txMachine* theMachine, txStri
 			/* mxInstanceInspectors */
 			mxPushList();
 
-			the->stackPrototypes = theMachine->stackTop;
+			the->stackIntrinsics = theMachine->stackTop;
+			the->stackPrototypes = theMachine->stackTop - XS_INTRINSICS_COUNT;
 
 			mxPushUndefined();
 			mxPush(theMachine->stackTop[-1 - mxGlobalStackIndex]);
@@ -1663,12 +1693,6 @@ txMachine* fxCloneMachine(txCreation* theCreation, txMachine* theMachine, txStri
 			slot = fxNextSlotProperty(the, slot, the->stack, mxID(_globalThis), XS_DONT_ENUM_FLAG);
 			mxGlobal.value = the->stack->value;
 			mxGlobal.kind = the->stack->kind;
-			if (the->archive) {
-				fxNewHostObject(the, C_NULL);
-				the->stack->value.reference->next->value.host.data = the->archive;
-				slot = fxNextSlotProperty(the, slot, the->stack, fxID(the, "archive"), XS_DONT_ENUM_FLAG);
-				mxPop();
-			}
 			
 			fxNewInstance(the);
 			mxPush(theMachine->stackTop[-1 - mxProgramStackIndex]); //@@
@@ -1717,7 +1741,6 @@ txMachine* fxPrepareMachine(txCreation* creation, txPreparation* preparation, tx
 		return C_NULL;
 	c_memset(root, 0, sizeof(txMachine));
 	root->preparation = preparation;
-	root->archive = archive;
 	root->keyArray = preparation->keys;
 	root->colors = preparation->colors;
 	root->keyCount = (txID)preparation->keyCount + (txID)preparation->creation.initialKeyCount;
@@ -1794,7 +1817,7 @@ void fxShareMachine(txMachine* the)
 
 void fxCollectGarbage(txMachine* the)
 {
-	fxCollect(the, XS_COMPACT_FLAG);
+	fxCollect(the, XS_COMPACT_FLAG | XS_COLLECT_KEYS_FLAG);
 }
 
 void fxEnableGarbageCollection(txMachine* the, txBoolean enableIt)
@@ -1881,6 +1904,8 @@ txMachine* fxBeginHost(txMachine* the)
 		the->breakOnStartFlag = 0;
 		the->stack->flag |= XS_STEP_INTO_FLAG | XS_STEP_OVER_FLAG;
 	}
+	if (the->frame && (the->frame->flag & XS_STEP_INTO_FLAG))
+		the->stack->flag |= XS_STEP_INTO_FLAG | XS_STEP_OVER_FLAG;
 #endif
 	the->stack->kind = XS_FRAME_KIND;
 	the->stack->value.frame.code = the->code;
@@ -1955,7 +1980,7 @@ typedef struct {
 	txBoolean dirty;
 } txMapper;
 
-static void fxMapperMapID(txMapper* self);
+static void fxMapperMapID(txMapper* self, txID id);
 static void fxMapperMapIDs(txMapper* self);
 static txU1 fxMapperRead1(txMapper* self);
 static txU2 fxMapperRead2(txMapper* self);
@@ -1979,31 +2004,6 @@ static void fxMapperStep(txMapper* self);
 #define mxElseInstall(_ASSERTION) if (!(_ASSERTION)) goto install
 
 #define mxArchiveHeaderSize (sizeof(Atom) + sizeof(Atom) + XS_VERSION_SIZE + sizeof(Atom) + XS_DIGEST_SIZE)
-
-void fxBuildArchiveKeys(txMachine* the)
-{
-	txPreparation* preparation = the->preparation;
-	if (preparation) {
-		txU1* p = the->archive;
-		if (p) {
-			txU4 atomSize;
-			txID c, i;
-			p += mxArchiveHeaderSize;
-			// NAME
-			atomSize = c_read32be(p);
-			p += atomSize;
-			// SYMB
-			p += sizeof(Atom);
-			c = (txID)c_read16(p);
-			p += 2;
-			p += mxStringLength((txString)p) + 1;
-			for (i = 1; i < c; i++) {
-				fxNewNameX(the, (txString)p);
-				p += mxStringLength((txString)p) + 1;
-			}
-		}
-	}
-}
 
 static txU1 *fxGetArchiveModules(txMachine *the, void* archive, txU4 *size)
 {
@@ -2243,39 +2243,18 @@ void* fxMapArchive(txMachine* the, txPreparation* preparation, void* archive, si
 		id = (txID)preparation->keyCount;
 		for (i = 0; i < c; i++) {
 			txU1 byte;
-			txU4 sum = 0;
-			txU4 modulo = 0;
-			txSlot* result;
 			p = self->scratch;
 			q = p + self->scratchSize;
 			while ((byte = fxMapperRead1(self))) {
 				mxElseFatalCheck(p < q);
 				*p++ = byte;
-				sum = (sum << 1) + byte;
 			}
 			mxElseFatalCheck(p < q);
 			*p = 0;
 			if (i == 0)
 				self->ids[i] = XS_NO_ID;
-			else if (the)
+			else
 				self->ids[i] = fxID(the, (txString)self->scratch);
-			else {
-				sum &= 0x7FFFFFFF;
-				modulo = sum % preparation->nameModulo;
-				result = preparation->names[modulo];
-				while (result != C_NULL) {
-					if (result->value.key.sum == sum)
-						if (c_strcmp(result->value.key.string, (txString)self->scratch) == 0)
-							break;
-					result = result->next;
-				}
-				if (result)
-					self->ids[i] = result->ID;
-				else {
-					self->ids[i] = id;
-					id++;
-				}
-			}
 		}
 		
 		fxMapperReadAtom(self, &atom);
@@ -2375,9 +2354,8 @@ bail:
 	return self->archive;
 }
 
-void fxMapperMapID(txMapper* self)
+void fxMapperMapID(txMapper* self, txID id)
 {
-	txID id = self->ids[*(self->map++)];
 	if (self->bufferOffset == self->bufferSize)
 		fxMapperStep(self);
 	*(self->buffer + self->bufferOffset) = (txU1)(id & 0x00FF);
@@ -2393,15 +2371,21 @@ void fxMapperMapID(txMapper* self)
 void fxMapperMapIDs(txMapper* self)
 {
 	register const txS1* bytes = gxCodeSizes;
+	txU1 code;
 	txS1 offset;
 	txU4 index;
 	while (self->bufferOffset < self->bufferCode) {
 		//fprintf(stderr, "%s", gxCodeNames[*((txU1*)p)]);
-		offset = (txS1)c_read8(bytes + fxMapperRead1(self));
-		if (0 < offset)
-			fxMapperSkip(self, offset - 1);
+		code = fxMapperRead1(self);
+		offset = (txS1)c_read8(bytes + code);
+		if (0 < offset) {
+			if (XS_CODE_PROFILE == code)
+				fxMapperMapID(self, fxGenerateProfileID(self->machine));
+			else
+				fxMapperSkip(self, offset - 1);
+		}
 		else if (0 == offset)
-			fxMapperMapID(self);
+			fxMapperMapID(self, self->ids[*(self->map++)]);
 		else if (-1 == offset) {
 			index = fxMapperRead1(self);
 			fxMapperSkip(self, index);
@@ -2473,6 +2457,22 @@ void fxMapperStep(txMapper* self)
 	if (self->bufferSize > 0)
 		mxElseFatalCheck(self->read(self->archive, self->offset, self->buffer, self->bufferSize));
 	self->bufferOffset = 0;
+}
+
+void fxSetArchive(txMachine* the, void* archive)
+{
+	the->archive = archive;
+	if (archive) {
+		fxNewHostObject(the, C_NULL);
+		the->stack->value.reference->next->value.host.data = archive;
+		mxPush(mxGlobal);
+		mxDefineID(fxID(the, "archive"), XS_DONT_ENUM_FLAG, XS_GET_ONLY);
+		mxPop();
+	}
+	else {
+		mxPush(mxGlobal);
+		mxDeleteID(fxID(the, "archive"));
+	}
 }
 
 txBoolean fxIsProfiling(txMachine* the)

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2016-2020 Moddable Tech, Inc.
+# Copyright (c) 2016-2023 Moddable Tech, Inc.
 #
 #   This file is part of the Moddable SDK Tools.
 # 
@@ -17,37 +17,26 @@
 #   along with the Moddable SDK Tools.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-ifeq ($(DEBUG),1)
-	START_XSBUG = open -a $(BUILD_DIR)/bin/mac/release/xsbug.app -g
-	KILL_SERIAL2XSBUG = $(shell pkill serial2xsbug)
-else
-	START_XSBUG =
-	KILL_SERIAL2XSBUG =
-endif
+ARCHIVE = $(BIN_DIR)/mc.xsa
 
-BUILDCLUT = $(BUILD_DIR)/bin/mac/release/buildclut
-COMPRESSBMF = $(BUILD_DIR)/bin/mac/release/compressbmf
-IMAGE2CS = $(BUILD_DIR)/bin/mac/release/image2cs
-MCLOCAL = $(BUILD_DIR)/bin/mac/release/mclocal
-MCREZ = $(BUILD_DIR)/bin/mac/release/mcrez
-PNG2BMP = $(BUILD_DIR)/bin/mac/release/png2bmp
-RLE4ENCODE = $(BUILD_DIR)/bin/mac/release/rle4encode
-WAV2MAUD = $(BUILD_DIR)/bin/mac/release/wav2maud
-XSC = $(MODDABLE)/build/bin/mac/release/xsc
-XSL = $(MODDABLE)/build/bin/mac/release/xsl
+.PHONY: all	build clean xsbug
 
-.PHONY: all	
+all: build
+	open -a $(SIMULATOR) $(ARCHIVE)
 
-all: $(BIN_DIR)/mc.xsa
-	$(KILL_SERIAL2XSBUG) 
-	$(START_XSBUG) 
-	open -a $(SIMULATOR) $(BIN_DIR)/mc.xsa
+build: $(ARCHIVE)
 
-build: $(BIN_DIR)/mc.xsa
+clean:
+	@echo "# Clean project"
+	-rm -rf $(BIN_DIR) 2>/dev/null
+	-rm -rf $(TMP_DIR) 2>/dev/null
+	
+xsbug:
+	open -a $(SIMULATOR) $(ARCHIVE)
 
 $(BIN_DIR)/mc.xsa: $(DATA) $(MODULES) $(RESOURCES)
 	@echo "# xsl mc.xsa"
-	$(XSL) -a -b $(MODULES_DIR) -n $(DOT_SIGNATURE) -o $(BIN_DIR) $(DATA) $(MODULES) $(RESOURCES)
+	xsl -a -b $(MODULES_DIR) -n $(DOT_SIGNATURE) -o $(BIN_DIR) $(DATA) $(MODULES) $(RESOURCES)
 
 ifneq ($(VERBOSE),1)
 MAKEFLAGS += --silent

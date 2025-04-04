@@ -1,14 +1,15 @@
 {
 	"build": {
 		"UPLOAD_SPEED": "1500000",
-		"DEBUGGER_SPEED": "1500000",
+		"DEBUGGER_SPEED": "921600",
 		"SDKCONFIGPATH": "./sdkconfig",
-		"PARTITIONS_FILE": "./sdkconfig/partitions.csv"
+		"PARTITIONS_FILE_FOR_TARGET": "./sdkconfig/partitions.csv"
 	},
 	"include": [
 		"$(MODDABLE)/modules/drivers/ili9341/manifest.json",
 		"$(MODDABLE)/modules/drivers/ft6206/manifest.json",
-		"$(MODDABLE)/modules/drivers/axp192/manifest.json"
+		"$(MODDABLE)/modules/drivers/axp192/manifest.json",
+		"$(MODDABLE)/modules/drivers/axp2101/manifest.json"
 	],
 	"config": {
 		"screen": "ili9341",

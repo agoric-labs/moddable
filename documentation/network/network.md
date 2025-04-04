@@ -1,6 +1,6 @@
 # Networking
-Copyright 2017-2022 Moddable Tech, Inc.<BR>
-Revised: March 8, 2022
+Copyright 2017-2024 Moddable Tech, Inc.<BR>
+Revised: Febrary 23, 2024
 
 ## Table of Contents
 
@@ -9,7 +9,7 @@ Revised: March 8, 2022
 * HTTP
 	* [Request](#http-request)
 	* [Server](#http-server)
-* WebSocket 
+* WebSocket
 	* [Client](#websocket-client)
 	* [Server](#websocket-server)
 * [Net](#net)
@@ -186,7 +186,7 @@ For a RAW socket, the first parameter is IP address to transmit the packet to. T
 socket.write("1.2.3.4", packet);
 ```
 
-It is more efficient to make a single `write` call with several parameters instead of multiple calls to `write`. 
+It is more efficient to make a single `write` call with several parameters instead of multiple calls to `write`.
 
 ***
 
@@ -216,7 +216,6 @@ For UDP sockets, the callback for `dataReceived` has three additional arguments 
 
 ```js
 callback(message, byteLength, remoteIP, remotePort) {}
-}
 ```
 
 For RAW sockets, the callback for `dataReceived` has two additional arguments after the message identifier . The first is the number of bytes available to read, as with TCP sockets. The second is a string containing the IP address of the sender.
@@ -322,7 +321,7 @@ The HTTP `Request` class implements a client for making HTTP requests. It is bui
 import {Request} from "http"
 ```
 
-<!-- Maybe body property should be named request to parallel response. And HTTP Request should be renamed HTTP Client -->
+> **Note**: Strings passed for the request body may only contain characters in the ASCII range 0 to 127. To use full UTF-8, convert the strings to a buffer using `ArrayBuffer.fromString` or `TextEncoder`.
 
 ### `constructor(dictionary)`
 
@@ -390,7 +389,7 @@ The user of the `Request` object receives status information through the callbac
 
 | `message` | `Request.` | Description |
 | :---: | :---: | :--- |
-|-2 | `error` | 
+|-2 | `error` |
 | 0 | `requestFragment` | Get request body fragment. This callback is only received if the `body` property in the dictionary is set to `true`. When called, `val1` is the maximum number of bytes that can be transmitted. Return either a `String` or `ArrayBuffer` containing the next fragment of the request body. Return `undefined` when there are no more fragments.
 | 1 | `status` | Response status received with status code. This callback is invoked when the HTTP response status line is successfully received. When called, `val1` is the HTTP status code (e.g. 200 for OK).
 | 2 | `header` | One header received. The callback is called for each header in the response. When called, `val1` is the header name in lowercase letters (e.g. `connection`) and `val2` is the header value (e.g. `close`).
@@ -412,9 +411,11 @@ The HTTP `Server` class implements a server to respond to HTTP requests. It is b
 import {Server} from "http"
 ```
 
+> **Note**: Strings passed for the response body may only contain characters in the ASCII range 0 to 127. To use full UTF-8, convert the strings to a buffer using `ArrayBuffer.fromString` or `TextEncoder`.
+
 ### `constructor(dictionary)`
 
-A new HTTP server is configured using a dictionary of properties. The dictionary is a super-set of the `Socket` dictionary. 
+A new HTTP server is configured using a dictionary of properties. The dictionary is a super-set of the `Socket` dictionary.
 
 To open an HTTP server, on the default port (80):
 
@@ -430,15 +431,14 @@ let server = new Server({port: 8080});
 
 ***
 
-### `close()`
+### `close([connections])`
 
 The `close` function immediately terminates the HTTP server, freeing the server listener socket and any other associated memory.
+If connections is true it also closes all active connections to the server.
 
 ```js
 server.close();
 ```
-
-> **Note:** The `close` function does not close active connections to the server.
 
 ***
 
@@ -447,7 +447,7 @@ server.close();
 The `detach` function accepts an active HTTP connection of the server instance and removes it from the server, returning the socket instance of the connection. This is useful for implementing an HTTP endpoint that accepts both HTTP and WebSocket connections by allowing the existing connection of HTTP server to be handed off to the WebSocket server.
 
 ```js
-server.detach(connnection);
+server.detach(connection);
 ```
 
 ***
@@ -462,7 +462,7 @@ The user of the server receives status information through the callback function
 | 1 | `connection` | New connection received. A new requested has been accepted by the server.
 | 2 | `status` | Status line of request received. The `val1` argument contains the request path (e.g. `index.html`) and `val2` contains the request method (e.g. `GET`).
 | 3 | `header` | One header received. A single HTTP header has been received, with the header name in lowercase letters in `val1` (e.g. `connection`) and the header value (e.g. `close`) in `val2`.
-| 4 | `headersComplete` | All headers received. All HTTP headers have been received. Return `String` or `ArrayBuffer` to receive the complete request body as an argument to the `requestComplete` message as the corresponding type; return `true` to have `requestFragment` invoked as the fragments arrrive. Return `false` or `undefined` to ignore the request body. The behavior for ohter return values is undefined.
+| 4 | `headersComplete` | All headers received. All HTTP headers have been received. Return `String` or `ArrayBuffer` to receive the complete request body as an argument to the `requestComplete` message as the corresponding type; return `true` to have `requestFragment` invoked as the fragments arrive. Return `false` or `undefined` to ignore the request body. The behavior for ohter return values is undefined.
 | 5 | `requestFragment` |
 | 6 | `requestComplete` |
 | 8 | `prepareResponse` | Prepare response. The server is ready to send the response. Callback returns a dictionary with the response status (e.g. 200) in the `status` property, HTTP headers in an array on the `headers` property, and the response body on the `body` property. If the status property is missing, the default value of `200` is used. If the body is a `String` or `ArrayBuffer`, it is the complete response. The server adds the `Content-Length` HTTP header. If the body property is set to `true`, the response is delivered using the `Transfer-encoding` mode `chunked`, and the callback is invoked to retrieve each response fragment.
@@ -503,7 +503,7 @@ The following example implements an HTTP server that responds to requests with a
 	switch (message) {
 		case 8:	// prepare response body
 			return {headers: ["Content-type", "text/plain"], body: true};
-		
+
 		case 9:	// provide response body fragment
 			let i = Math.round(Math.random() * 20);
 			if (0 == i)
@@ -549,23 +549,24 @@ The following example implements an HTTP server that receives PUT requests, and 
 
 ```js
 import {File} from "file";
+import config from "mc/config";
 
 (new Server({})).callback = function(message, value) {
 	switch (message) {
-		case 2:								// request status received
-			let path = value;				// file path is HTTP path
+		case Server.status:						// request status received
+			const path = config.file.root + value.slice(1);
 			File.delete(path);
 			this.file = new File(path, true);
 			break;
 
-		case 4:								// prepare for request body
-			return true;					// provide request body in fragments
-	
-		case 5:								// request body fragment
+		case Server.headersComplete:			// prepare for request body
+			return true;						// provide request body in fragments
+
+		case Server.requestFragment:			// request body fragment
 			this.file.write(this.read(ArrayBuffer));
 			break;
 
-		case 6:								// request body received
+		case Server.requestComplete				// request body received
 			this.file.close();
 			break;
 	}
@@ -696,7 +697,7 @@ ws.close();
 
 ### `attach(socket)`
 
-The `attach` function creates a new incoming WebSockets connection from the provided socket. The server issues the `Server.connect` callback and then performs the WebSockets handshake. The status line has been read from the socket, but none of the HTTP headers have been read as these are required to complete the handshake. 
+The `attach` function creates a new incoming WebSockets connection from the provided socket. The server issues the `Server.connect` callback and then performs the WebSockets handshake. The status line has been read from the socket, but none of the HTTP headers have been read as these are required to complete the handshake.
 
 See the [httpserverwithwebsockets](../../examples/network/http/httpserverwithwebsockets/main.js) for an example of sharing a single listener socket between the HTTP and WebSockets servers.
 
@@ -732,7 +733,7 @@ The `get` function returns properties of the active network connection.
 
 The following properties are available:
 
-| Property | Description | 
+| Property | Description |
 | :---: | :--- |
 | `IP` | The IP address of the network connection as a `String`, e.g. "10.0.1.4". These may be IPv4 or IPv6 addresses.
 | `MAC` | The MAC address of the device as a `String`, e.g. "A4:D1:8C:DB:C0:20"
@@ -747,11 +748,11 @@ The following properties are available:
 trace(`Connected to Wi-Fi access point: ${Net.get("SSID")}\n`);
 ```
 
-For a device operating as both a Wi-Fi station (client) and a Wi-Fi access point, the static `get` method accepts an optional second argument to indicate if the request is for the station or access point interface. The interface accepts values of `"station"` and `"ap"`. It is used for the `IP` and `MAC` properties. 
+For a device operating as both a Wi-Fi station (client) and a Wi-Fi access point, the static `get` method accepts an optional second argument to indicate if the request is for the station or access point interface. The interface accepts values of `"station"` and `"ap"`. It is used for the `IP` and `MAC` properties.
 
 On ESP32, the optional second argument can also be used to explicitly request information about the Ethernet interface by providing the value `"ethernet"`.
 
-```
+```js
 trace(`IP default ${Net.get("IP")}\n`);
 trace(`IP station ${Net.get("IP", "station")}\n`);
 trace(`IP AP ${Net.get("IP", "ap")}\n`);
@@ -765,7 +766,7 @@ In station mode, the default value for the interface is `"station"`; in access p
 The `resolve` function performs performs an asynchronous [DNS](https://en.wikipedia.org/wiki/Domain_Name_System) look-up for the specified `host` and invokes the `callback` to deliver the result.
 
 ```js
-Net.resolve("moddable.tech", (name, address) => trace(`${name} IP address is ${address}\n`);
+Net.resolve("moddable.tech", (name, address) => trace(`${name} IP address is ${address}\n`));
 ```
 
 The IP address is provided as a `String` in dotted IP address notation. If `host` cannot be resolved, the `address` parameter is `undefined`.
@@ -788,7 +789,7 @@ import WiFi from "wifi";
 
 ### `constructor(dictionary, callback)`
 
-The `WiFi` constructor takes a single argument, a dictionary of initialization parameters. The constructor begins the process of establishing a connection. 
+The `WiFi` constructor takes a single argument, a dictionary of initialization parameters. The constructor begins the process of establishing a connection.
 
 The dictionary always contains the required `ssid` property with the name of the base station to connect to. The optional `password` property is included when the base station requires a password. When the optional `bssid` property is included, it may accelerate connecting to Wi-Fi on device targets that support it.
 
@@ -826,7 +827,7 @@ monitor.close();
 
 ### `static scan(dictionary, callback)`
 
-The `scan` static function initiates a scan for available Wi-Fi access points. 
+The `scan` static function initiates a scan for available Wi-Fi access points.
 
 The dictionary parameter supports two optional properties:
 
@@ -854,7 +855,9 @@ The Wi-Fi scan runs for a fixed period of time, approximately two seconds. Durin
 
 ### `mode` property
 
-The `mode` property is set to 1 for station mode (e.g. device acts as Wi-Fi client), 2 for access point mode (e.g. device acts as Wi-Fi base station), and 3 for simultaneous operation of station and access point modes.
+The `mode` property is set to `WiFi.Mode.station` for station mode (e.g. device acts as Wi-Fi client), `WiFi.Mode.accessPoint` for access point mode (e.g. device acts as Wi-Fi base station), and `WiFi.Mode.station | WiFi.Mode.accessPoint` for simultaneous operation of station and access point modes.
+
+`mode` may be set to `WiFi.Mode.none` to disable both station and accessPoint modes. Depending on the platform, Wi-Fi may still be powered when mode is set to `WiFi.Mode.none`. Some platforms support `WiFi.Mode.off` to power-down Wi-Fi. Use `"off" in WiFi.Mode` at runtime to test to see if the feature is supported.
 
 ***
 
@@ -959,10 +962,10 @@ The DNS module contains constants that are useful when implementing code that in
 ```js
 import DNS from "dns";
 ```
-	
+
 - `DNS.RR` contains constants for resource record types, such as `DNS.RR.PTR`.
 - `DNS.OPCODE` contains values for `DNS.OPCODE.QUERY` and `DNS.OPCODE.UPDATE`.
-- `DNS.CLASS` contains values for `DNS.CLASS.IN`, `DNS.CLASS.NONE`, and `DNS.CLASS.ANY`. 
+- `DNS.CLASS` contains values for `DNS.CLASS.IN`, `DNS.CLASS.NONE`, and `DNS.CLASS.ANY`.
 - `DNS.SECTION` contains values that include `DNS.QUESTION` and `DNS.ANSWER`.
 
 <a id="dns-parser"></a>
@@ -988,12 +991,12 @@ No validation is performed by the constructor. Errors, if any, are reported when
 ***
 
 ### `questions(index)`
-Returns the question resource record corresponding to the index argument. Indices are numbered from 0. Returns `null` if index is greater than number of question records in the packet. 
+Returns the question resource record corresponding to the index argument. Indices are numbered from 0. Returns `null` if index is greater than number of question records in the packet.
 
 ***
 
 ### `answers(index)`
-Returns the answer resource record corresponding to the index argument. Indices are numbered from 0. Returns `null` if index is greater than number of answer records in the packet. 
+Returns the answer resource record corresponding to the index argument. Indices are numbered from 0. Returns `null` if index is greater than number of answer records in the packet.
 
 ***
 
@@ -1003,7 +1006,7 @@ Returns the authority resource record corresponding to the index argument. Indic
 ***
 
 ### `additionals(index)`
-Returns the additional resource record corresponding to the index argument. Indices are numbered from 0. Returns `null` if index is greater than number of additional records in the packet. 
+Returns the additional resource record corresponding to the index argument. Indices are numbered from 0. Returns `null` if index is greater than number of additional records in the packet.
 
 ***
 
@@ -1026,7 +1029,7 @@ The parser instance has properties for the `id` and `flags` fields in the DNS pa
 let id = packet.id;
 let flags = packet.flags;
 ```
-	
+
 ***
 
 ### Example: Determining the number of records
@@ -1069,7 +1072,7 @@ The DNS `Serializer` constructor accepts a dictionary with properties to configu
 
 | Property | Default Value | Description |
 | :---: | :---: | :--- |
-| `opcode` | `DNS.OPCODE.QUERY` | The numeric value of the `opcode` header field 
+| `opcode` | `DNS.OPCODE.QUERY` | The numeric value of the `opcode` header field
 | `query` | `true` | A boolean that indicates whether this packet contains a query or response
 | `authoritative` | `false` | A boolean indicating the value of the `authoritative` bit in the header
 | `id` | 0 | A numeric value for the ID field
@@ -1095,7 +1098,7 @@ The optional `data` argument is used to build the resource data portion of the r
 | `A` | A string containing the IP address.
 | `NSEC` | A dictionary with two keys. The first is `next` containing a string with the next hostname value. The second is a Uint8Array containing the bit-mask.
 | `PTR` | A string with the PTR value.
-| `SRV` | A dictionary with four keys. The `priority`, `weight`, and `port` fields are numbers with the value of the corresponding field. The `target` property is a string containing the name of the target. 
+| `SRV` | A dictionary with four keys. The `priority`, `weight`, and `port` fields are numbers with the value of the corresponding field. The `target` property is a string containing the name of the target.
 | `TXT` | A dictionary of key / value pairs for the TXT record. The property name is the key. Only string values are supported at this time.
 
 ***
@@ -1168,7 +1171,7 @@ new DNSServer((message, value) => {
 })
 ```
 
-> **Note:**: This example expects to be run on a Wi-Fi connection in access point mode. It passes "ap" for the interface argument to `Net.get` to retrieve the IP address for access point. 
+> **Note:**: This example expects to be run on a Wi-Fi connection in access point mode. It passes "ap" for the interface argument to `Net.get` to retrieve the IP address for access point.
 
 ### Example: DNS server for a single host name
 
@@ -1177,7 +1180,7 @@ The following example redirects all DNS look-ups for "example.com" to the IP add
 ```js
 new DNSServer((message, value) => {
 	if ((1 == message) && ("example.com" == value))
-		return Net.get("IP", 'ap");
+		return Net.get("IP", "ap");
 })
 ```
 
@@ -1187,7 +1190,7 @@ new DNSServer((message, value) => {
 ## class MDNS
 
 - **Source code:** [mdns](../../modules/network/mdns)
-- **Relevant Examples:** [discoverhttp](../../examples/network/mdns/discoverhttp), [httpserver](../../examples/network/mdns/httpserver), [ntpclient](../../examples/network/mdns/ntpclient), [ntpservice](../../examples/network/mdns/ntpservice), 
+- **Relevant Examples:** [discoverhttp](../../examples/network/mdns/discoverhttp), [httpserver](../../examples/network/mdns/httpserver), [ntpclient](../../examples/network/mdns/ntpclient), [ntpservice](../../examples/network/mdns/ntpservice),
 
 The `MDNS` class implements services for working with [Multicast DNS](https://tools.ietf.org/html/rfc6762) discovery and services. It includes claiming `.local` names, advertising mDNS service availability, and scanning for available mDNS services.
 
@@ -1216,7 +1219,7 @@ const mdns = new MDNS({hostName: "mydevice"});
 ```
 
 The claiming process takes some time, usually under one second. Claiming the name may not succeed because the name may already be in use. An optional callback function provides status on the claim:
-	
+
 ```js
 const mdns = new MDNS({hostName: "mydevice"}, function(message, value) {
 	switch (message) {
@@ -1289,7 +1292,7 @@ let service = mdns.services[0];
 service.txt["value"] = 123;
 mdns.update(service);
 ```
- 
+
 ***
 
 ### `remove(service)` or `remove(serviceType)`
@@ -1380,7 +1383,7 @@ The following example pings the server at `example.com` every 1000ms, tracing th
 let ping = new Ping({host: "example.com", id: 1, interval: 1000}, (message, value, etc) => {
 	if (1 == message)
 		trace(`${value} bytes from ${etc.address}: icmp_seq=${etc.icmp_seq}\n`);
-}
+})
 ```
 
 ***
@@ -1424,7 +1427,7 @@ A new MQTT `Client` is configured using a dictionary of properties. The dictiona
 | `Socket` | The socket constructor to use to create the MQTT connection. Use `SecureSocket` to establish a secure connection using TLS. |
 | `secure` | Dictionary of options for a TLS connection when using `SecureSocket` |
 
-```
+```js
 let mqtt = new Client({
 	host: "test.mosquitto.org",
 	id: "iot_" + Net.get("MAC"),
@@ -1439,7 +1442,7 @@ let mqtt = new Client({
 
 The `onReady` callback is invoked when a connection is successfully established to the server. No messages may be published or subscriptions created before `onReady` is called.
 
-```
+```js
 mqtt.onReady = function () {
 	trace("connection established\n");
 }
@@ -1451,7 +1454,7 @@ mqtt.onReady = function () {
 
 To subscribe to a topic, use the `subscribe` method. Your client can subscribe to multiple clients by calling `subscribe` more than once.
 
-```
+```js
 mqtt.subscribe("test/string");
 mqtt.subscribe("test/binary");
 mqtt.subscribe("test/json");
@@ -1462,15 +1465,15 @@ mqtt.subscribe("test/json");
 Use the `unsubscribe` method to unsubscribe to a topic.
 
 
-```
+```js
 mqtt.unsubscribe("test/string");
 ```
 
-### `onMessage(topic, data)` 
+### `onMessage(topic, data)`
 
 The `onMessage` callback is invoked when a message is received for any topic that your client has subscribed to. The `topic` argument is the name of the topic and the `data` argument is the complete message.
 
-```
+```js
 mqtt.onMessage = function(topic, data) {
 	trace(`received message on topic "${topic}"\n`);
 }
@@ -1478,7 +1481,7 @@ mqtt.onMessage = function(topic, data) {
 
 The `data` argument is an `ArrayBuffer`. For messages containing only UTF-8 text, you can convert it to a string using `String.fromArrayBuffer`.
 
-```
+```js
 mqtt.onMessage = function(topic, data) {
 	trace(`received message on topic "${topic}"\n`);
 	trace(`data: ${String.fromArrayBuffer(data)}\n`);
@@ -1491,14 +1494,14 @@ mqtt.onMessage = function(topic, data) {
 
 To send a message to a topic, use the `publish` method. The `message` argument may be either a string or an `ArrayBuffer`.
 
-```
+```js
 mqtt.publish("test/string", "hello");
 mqtt.publish("test/binary", Uint8Array.of(1, 2, 3).buffer);
 ```
 
 To publish JSON, first convert it to a string.
 
-```
+```js
 mqtt.publish("test/json", JSON.stringify({
 	message: "hello",
 	version: 1
@@ -1511,7 +1514,7 @@ mqtt.publish("test/json", JSON.stringify({
 
 The `onClose` callback is invoked when the connection is lost, because of a network error or because the MQTT broker closed the connection.
 
-```
+```js
 mqtt.onClose = function() {
 	trace("connection lost\n");
 }

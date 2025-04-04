@@ -121,7 +121,7 @@ void fx_parseFloat(txMachine* the)
 	}
 	fxToString(the, mxArgv(0));
 	mxResult->kind = XS_NUMBER_KIND;
-	mxResult->value.number = fxStringToNumber(the->dtoa, mxArgv(0)->value.string, 0);
+	mxResult->value.number = fxStringToNumber(the, mxArgv(0)->value.string, 0);
 }
 
 void fx_parseInt(txMachine* the)
@@ -314,7 +314,7 @@ void fx_Number_prototype_toExponential(txMachine* the)
 	txNumber precision = 0;
 	txNumber value;
 	txSlot* slot = fxCheckNumber(the, mxThis);
-	if (!slot) mxTypeError("this is no number");
+	if (!slot) mxTypeError("this: not a number");
 	value = slot->value.number;
 	if ((mxArgc > 0) && !mxIsUndefined(mxArgv(0))) {
 		precision = fxToNumber(the, mxArgv(0));
@@ -336,7 +336,7 @@ void fx_Number_prototype_toExponential(txMachine* the)
 	}
 	else
 		precision = 0;
-	fxNumberToString(the->dtoa, slot->value.number, buffer, sizeof(buffer), mode, (int)precision);
+	fxNumberToString(the, slot->value.number, buffer, sizeof(buffer), mode, (int)precision);
 	fxCopyStringC(the, mxResult, buffer);
 }
 
@@ -347,7 +347,7 @@ void fx_Number_prototype_toFixed(txMachine* the)
 	txNumber precision = 0;
 	txNumber value;
 	txSlot* slot = fxCheckNumber(the, mxThis);
-	if (!slot) mxTypeError("this is no number");
+	if (!slot) mxTypeError("this: not a number");
 	value = slot->value.number;
 	if ((mxArgc > 0) && !mxIsUndefined(mxArgv(0))) {
 		precision = fxToNumber(the, mxArgv(0));
@@ -364,14 +364,14 @@ void fx_Number_prototype_toFixed(txMachine* the)
 		precision = 0;
 	else
 		mode = 'f';
-	fxNumberToString(the->dtoa, value, buffer, sizeof(buffer), mode, (int)precision);
+	fxNumberToString(the, value, buffer, sizeof(buffer), mode, (int)precision);
 	fxCopyStringC(the, mxResult, buffer);
 }
 
 void fx_Number_prototype_toLocaleString(txMachine* the)
 {
 	txSlot* slot = fxCheckNumber(the, mxThis);
-	if (!slot) mxTypeError("this is no number");
+	if (!slot) mxTypeError("this: not a number");
 	mxResult->kind = slot->kind;
 	mxResult->value = slot->value;
 	fxToString(the, mxResult);
@@ -384,7 +384,7 @@ void fx_Number_prototype_toPrecision(txMachine* the)
 	txNumber precision = 0;
 	txNumber value;
 	txSlot* slot = fxCheckNumber(the, mxThis);
-	if (!slot) mxTypeError("this is no number");
+	if (!slot) mxTypeError("this: not a number");
 	value = slot->value.number;
 	if ((mxArgc > 0) && !mxIsUndefined(mxArgv(0))) {
 		precision = fxToNumber(the, mxArgv(0));
@@ -402,7 +402,7 @@ void fx_Number_prototype_toPrecision(txMachine* the)
 		else
 			precision = 0;
 	}
-	fxNumberToString(the->dtoa, value, buffer, sizeof(buffer), mode, (int)precision);
+	fxNumberToString(the, value, buffer, sizeof(buffer), mode, (int)precision);
 	fxCopyStringC(the, mxResult, buffer);
 }
 
@@ -410,7 +410,7 @@ void fx_Number_prototype_toString(txMachine* the)
 {
 	txInteger radix;
 	txSlot* slot = fxCheckNumber(the, mxThis);
-	if (!slot) mxTypeError("this is no number");
+	if (!slot) mxTypeError("this: not a number");
 	if ((mxArgc > 0) && (!mxIsUndefined(mxArgv(0)))) {
 		radix = fxToInteger(the, mxArgv(0));
 		if ((radix < 2) || (36 < radix))
@@ -536,7 +536,7 @@ void fx_Number_prototype_toString(txMachine* the)
 void fx_Number_prototype_valueOf(txMachine* the)
 {
 	txSlot* slot = fxCheckNumber(the, mxThis);
-	if (!slot) mxTypeError("this is no number");
+	if (!slot) mxTypeError("this: not a number");
 	mxResult->kind = slot->kind;
 	mxResult->value = slot->value;
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2022  Moddable Tech, Inc.
+ * Copyright (c) 2016-2023  Moddable Tech, Inc.
  *
  *   This file is part of the Moddable SDK Runtime.
  * 
@@ -46,6 +46,8 @@ import Bin from "bin";
 import BER from "ber";
 import PKCS8 from "pkcs8"
 
+const globalCerts = [];
+
 class CertificateManager {
 	#verify;
 	#registeredCerts = [];
@@ -66,9 +68,9 @@ class CertificateManager {
 	getKey(cert) {
 		// look for the key corresponding to the cert
 		// first, search in the registed cert
-		for (let i = 0; i < this.#registeredCerts.length; i++) {
-			if (0 === Bin.comp(this.#registeredCerts[i], cert)) {
-				const x509 = X509.decode(this.#registeredCerts[i]);
+		for (let i = 0, registeredCerts = this.#registeredCerts.concat(globalCerts); i < registeredCerts.length; i++) {
+			if (0 === Bin.comp(registeredCerts[i], cert)) {
+				const x509 = X509.decode(registeredCerts[i]);
 				return x509.spki;	// public key only
 			}
 		}
@@ -109,15 +111,45 @@ class CertificateManager {
 
 		return X509.decodeSPKI(data);
 	}
-	verify(certs) {
+	verify(certs, options) {
 		if (!this.#verify)
 			return true;
 
-		let length = certs.length - 1, x509, validity, now = Date.now(), spki;
+		let length = certs.length - 1, x509, validity, now = Date.now(), spki, match;
+		const registeredCerts = this.#registeredCerts.concat(globalCerts);
+		let tls_server_name = options.tls_server_name?.toLowerCase();
+		if (!tls_server_name) {
+			trace(`tls_server_name required\n`);
+			return false;
+		}
 
 		// this approach calls decodeSPKI once more than necessary in favor of minimizing memory use
 		for (let i = 0; i < length; i++) {
 			x509 = X509.decode(certs[i]);
+			const names = X509.decodeSAN(certs[i]);
+			for (let j = 0; j < names?.length; j++) {
+				let name = names[j];
+				if (2 === name.tag) {			// dNSName
+					name = name.value.toLowerCase();
+					if (42 === name.charCodeAt(0)) {		// wildcard ("*")
+						if (name.indexOf("*", 1) > 0)	// only one wild card
+							continue;
+						let position = tls_server_name.indexOf(".");
+						if (position < 0) continue;
+						match = name.slice(1).toLowerCase() === tls_server_name.slice(position);
+					}
+					else
+						match = name.toLowerCase() === tls_server_name;
+				}
+				else if (7 === name.tag) {		// iPAddress
+					name = name.value;
+					if (4 !== name.byteLength) continue;		// only handling IPv4 for now
+					name = (new Uint8Array(name)).join(".");
+					match = name === tls_server_name;
+				}
+				if (match) break;
+			}
+
 			validity = X509.decodeTBS(x509.tbs).validity;
 			if (!((validity.from < now) && (now < validity.to))) {
 				trace("date validation failed on received certificate\n");
@@ -129,19 +161,23 @@ class CertificateManager {
 			x509 = undefined;
 
 			let aki = X509.decodeAKI(certs[i + 1]);
-			for (let j = 0; j < this.#registeredCerts.length; j++) {
-				if (Bin.comp(X509.decodeSKI(this.#registeredCerts[j]), aki) == 0) {
-					spki = X509.decodeSPKI(this.#registeredCerts[j]);
-					if (spki && this._verify(spki, X509.decode(certs[i + 1])))
-						return true;
+			for (let j = 0; j < registeredCerts.length; j++) {
+				if (Bin.comp(X509.decodeSKI(registeredCerts[j]), aki) == 0) {
+					spki = X509.decodeSPKI(registeredCerts[j]);
+					if (spki && this._verify(spki, X509.decode(certs[i + 1]))) {
+						if (!match) trace(`subjectAltName match failed for ${tls_server_name}\n`);
+						return match;
+					}
 					spki = undefined;
 				}
 			}
 
 			spki = this.findCert("ca.ski", aki);
 			aki = undefined;
-			if (spki && this._verify(spki, X509.decode(certs[i + 1])))
-				return true;
+			if (spki && this._verify(spki, X509.decode(certs[i + 1]))) {
+				if (!match) trace(`subjectAltName match failed for ${tls_server_name}\n`);
+				return match;
+			}
 				// else fall thru
 			spki = undefined;
 		}
@@ -154,14 +190,18 @@ class CertificateManager {
 		}
 
 		spki = this.findCert("ca.ski", X509.decodeAKI(certs[length]));
-		if (spki && this._verify(spki, x509))
-			return true;
+		if (spki && this._verify(spki, x509)) {
+			if (!match) trace(`subjectAltName match failed for ${tls_server_name}\n`);
+			return match;
+		}
 			// else fall thru
 
-		for (let i = 0; i < this.#registeredCerts.length; i++) {
-			spki = X509.decodeSPKI(this.#registeredCerts[i]);
-			if (spki && this._verify(spki, x509))
-				return true;
+		for (let i = 0; i < registeredCerts.length; i++) {
+			spki = X509.decodeSPKI(registeredCerts[i]);
+			if (spki && this._verify(spki, x509)) {
+				if (!match) trace(`subjectAltName match failed for ${tls_server_name}\n`);
+				return match;
+			}
 		}
 
 		return false;
@@ -244,6 +284,14 @@ class CertificateManager {
 			let g = ber.getInteger();
 			return {p, g};
 		}
+	}
+
+	static register(cert) {
+		for (let i = 0; i < globalCerts.length; i++) {
+			if (!Bin.comp(globalCerts[i], cert))
+				return;
+		}
+		globalCerts.push(cert);
 	}
 }
 

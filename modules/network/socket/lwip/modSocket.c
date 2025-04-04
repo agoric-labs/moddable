@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2022  Moddable Tech, Inc.
+ * Copyright (c) 2016-2024  Moddable Tech, Inc.
  *
  *   This file is part of the Moddable SDK Runtime.
  * 
@@ -183,9 +183,7 @@ static int socketDownUseCount(xsMachine *the, xsSocket xss)
 
 	xss->pending |= kPendingClose;
 	modCriticalSectionEnd();
-	destructor = xsGetHostDestructor(xss->obj);
-	xsmcSetHostData(xss->obj, NULL);
-	xsForget(xss->obj);
+	destructor = (kTCPListener == xss->kind) ? xs_listener_destructor : xs_socket_destructor;
 	(*destructor)(xss);
 	return 1;
 }
@@ -202,11 +200,16 @@ void xs_socket(xsMachine *the)
 	int ttl = 0;
 	char addr[64];
 
+#if ESP32 && (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
+	if (!esp_netif_get_default_netif())
+		xsUnknownError("no network");
+#endif
+
 	xsmcVars(2);
 	if (xsmcHas(xsArg(0), xsID_listener)) {
 		xsListener xsl;
 		xsmcGet(xsVar(0), xsArg(0), xsID_listener);
-		xsl = xsmcGetHostData(xsVar(0));
+		xsl = xsmcGetHostDataValidate(xsVar(0), xs_listener_destructor);
 
 		modCriticalSectionBegin();
 
@@ -340,13 +343,22 @@ void xs_socket(xsMachine *the)
 		if (ttl) {
 			ip_addr_t ifaddr;
 	#if ESP32
-			uint8_t ifc;
+//			uint8_t ifc;
+			esp_netif_t *ifc = NULL;
 
+			do {
+				esp_netif_ip_info_t info = {0};
+				if (ESP_OK == esp_netif_get_ip_info(ifc, &info))
+					igmp_joingroup(&info.ip.addr, &multicastIP);
+			} while (ifc != NULL);
+
+/*
 			for (ifc = 0; ifc <= TCPIP_ADAPTER_IF_ETH; ifc++) {
 				tcpip_adapter_ip_info_t info = {0};
 				if (ESP_OK == tcpip_adapter_get_ip_info(ifc, &info))
 					igmp_joingroup(&info.ip.addr, &multicastIP);
 			}
+*/
 			(xss->udp)->mcast_ip4 = multicastIP.u_addr.ip4;
 	#elif CYW43_LWIP
 			//@@ MDK - multicast
@@ -409,18 +421,21 @@ static void closeSocket(xsSocket xss)
 		tcp_err(xss->skt, NULL);
 		tcp_close_safe(xss->skt);
 		xss->skt = NULL;
+		modInstrumentationAdjust(NetworkSockets, -1);
 	}
 
 	if (xss->udp) {
 		udp_recv(xss->udp, NULL, NULL);
 		udp_remove_safe(xss->udp);
 		xss->udp = NULL;
+		modInstrumentationAdjust(NetworkSockets, -1);
 	}
 
 	if (xss->raw) {
 		raw_recv(xss->raw, NULL, NULL);
 		raw_remove(xss->raw);
 		xss->raw = NULL;
+		modInstrumentationAdjust(NetworkSockets, -1);
 	}
 }
 
@@ -442,18 +457,20 @@ void xs_socket_destructor(void *data)
 	}
 
 	c_free(xss);
-
-	modInstrumentationAdjust(NetworkSockets, -1);
 }
 
 void xs_socket_close(xsMachine *the)
 {
 	xsSocket xss = xsmcGetHostData(xsThis);
 
-	if (NULL == xss) {
-		xsTrace("close on closed socket\n");
+	if (NULL == xss)
 		return;
-	}
+
+	xsmcGetHostDataValidate(xsThis, xs_socket_destructor);
+
+	xsmcSetHostDestructor(xsThis, NULL);
+	xsmcSetHostData(xsThis, NULL);
+	xsForget(xss->obj);
 
 	closeSocket(xss);
 
@@ -468,7 +485,7 @@ void xs_socket_close(xsMachine *the)
 
 void xs_socket_get(xsMachine *the)
 {
-	xsSocket xss = xsmcGetHostData(xsThis);
+	xsSocket xss = xsmcGetHostDataValidate(xsThis, xs_socket_destructor);
 	const char *name = xsmcToString(xsArg(0));
 
 	if (xss->skt && (0 == c_strcmp(name, "REMOTE_IP"))) {
@@ -479,7 +496,7 @@ void xs_socket_get(xsMachine *the)
 
 void xs_socket_read(xsMachine *the)
 {
-	xsSocket xss = xsmcGetHostData(xsThis);
+	xsSocket xss = xsmcGetHostDataValidate(xsThis, xs_socket_destructor);
 	xsType dstType;
 	int argc = xsmcArgc;
 	uint16 srcBytes;
@@ -588,7 +605,7 @@ void xs_socket_read(xsMachine *the)
 
 void xs_socket_write(xsMachine *the)
 {
-	xsSocket xss = xsmcGetHostData(xsThis);
+	xsSocket xss = xsmcGetHostDataValidate(xsThis, xs_socket_destructor);
 	int argc = xsmcArgc;
 	char *msg;
 	xsUnsignedValue msgLen;
@@ -643,7 +660,7 @@ void xs_socket_write(xsMachine *the)
 		if (!p)
 			xsUnknownError("no buffer");
 		c_memcpy(p->payload, data, needed);
-		err = raw_sendto(xss->raw, p, &dst);
+		err = raw_sendto(xss->raw, p, &dst);		//@@ safe version?
 		pbuf_free_safe(p);
 		if (ERR_OK != err)
 			xsUnknownError("RAW send failed");
@@ -747,7 +764,7 @@ void xs_socket_write(xsMachine *the)
 
 void xs_socket_suspend(xsMachine *the)
 {
-	xsSocket xss = xsmcGetHostData(xsThis);
+	xsSocket xss = xsmcGetHostDataValidate(xsThis, xs_socket_destructor);
 
 	if (xsmcArgc) {
 		uint8_t suspended = xsmcToBoolean(xsArg(0));
@@ -1164,9 +1181,9 @@ void xs_listener_destructor(void *data)
 	for (i = 0; i < kListenerPendingSockets; i++)
 		xs_socket_destructor(xsl->accept[i]);
 
-	c_free(xsl);
-
 	modInstrumentationAdjust(NetworkSockets, -1);
+
+	c_free(xsl);
 }
 
 void xs_listener_close(xsMachine *the)
@@ -1177,6 +1194,12 @@ void xs_listener_close(xsMachine *the)
 		xsTrace("close on closed listener");
 		return;
 	}
+
+	xsmcGetHostDataValidate(xsThis, xs_listener_destructor);
+
+	xsmcSetHostDestructor(xsThis, NULL);
+	xsmcSetHostData(xsThis, NULL);
+	xsForget(xsl->obj);
 
 	socketSetPending((xsSocket)xsl, kPendingClose);
 }
@@ -1330,7 +1353,7 @@ done:
 
 void *modSocketGetLWIP(xsMachine *the, xsSlot *slot)
 {
-	xsSocket xss = xsmcGetHostData(*slot);
+	xsSocket xss = xsmcGetHostDataValidate(*slot, xs_socket_destructor);
 	struct tcp_pcb *skt = xss->skt;
 	if (skt) {
 		socketSetPending(xss, kPendingDisconnect | kPendingClose);

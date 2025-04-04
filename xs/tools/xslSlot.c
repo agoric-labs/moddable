@@ -193,7 +193,11 @@ void fxCheckAliasesError(txMachine* the, txAliasIDList* list, txFlag flag)
 		case XSL_PROXY_TARGET_FLAG: fprintf(stderr, ".(target)"); break;
 		default: fprintf(stderr, ": "); break;
 		}
-		if (link->id != XS_NO_ID) {
+		if (link->flag == XSL_ITEM_FLAG) {
+			fprintf(stderr, "%d", link->id);
+			fprintf(stderr, "]");
+		}
+		else if (link->id != XS_NO_ID) {
 			char* string = fxGetKeyName(the, link->id);
 			if (string) {
 				if (link->flag == XSL_GLOBAL_FLAG) {
@@ -208,8 +212,6 @@ void fxCheckAliasesError(txMachine* the, txAliasIDList* list, txFlag flag)
 		}
 		else 
 			fprintf(stderr, "%d", link->id);
-		if (link->flag == XSL_ITEM_FLAG)
-			fprintf(stderr, "]");
 		link = link->next;
 	}
 	if (flag == 3) {
@@ -548,7 +550,7 @@ txSlot* fxNewFunctionName(txMachine* the, txSlot* instance, txID id, txIndex ind
 	}
 	else if (former) {
 		char buffer[16];
-		fxCopyStringC(the, property, fxNumberToString(the->dtoa, index, buffer, sizeof(buffer), 0, 0));	
+		fxCopyStringC(the, property, fxNumberToString(the, index, buffer, sizeof(buffer), 0, 0));	
 	}
 	if (prefix) 
 		fxAdornStringC(the, prefix, property, C_NULL);
@@ -1314,13 +1316,15 @@ void fxPrintSlot(txMachine* the, FILE* file, txSlot* slot, txFlag flag)
 		fxPrintAddress(the, file, slot->value.weakEntry.value);
 		fprintf(file, " } }");
 	} break;
-#ifdef mxHostFunctionPrimitive
+#if mxHostFunctionPrimitive
 	case XS_HOST_FUNCTION_KIND: {
 		fprintf(file, ".kind = XS_HOST_FUNCTION_KIND}, ");
 		fprintf(file, ".value = { .hostFunction = { %s, %d } }", fxGetBuilderName(the, slot->value.hostFunction.builder), slot->value.hostFunction.profileID);
 	} break;
 #endif
 	default:
+		fprintf(file, ".kind = XS_NULL_KIND}, ");
+		fprintf(file, ".value = { .number = 0 } ");
 		break;
 	}
 	fprintf(file, "},\n");

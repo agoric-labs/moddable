@@ -4,13 +4,7 @@ flags: [module]
 ---*/
 
 import Worker from "worker";
-
-const minimumOptions = {
-	allocation: 8192,
-	stackCount: 64,
-	slotCount: 64,
-	keyCount: 7
-};
+import minimumOptions from "./minimumOptions_FIXTURE.js"
 
 let worker = new Worker("testworker", minimumOptions);
 

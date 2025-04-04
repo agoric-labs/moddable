@@ -83,7 +83,11 @@ class SMBus {
     }
 
     writeBuffer(register, buffer) {
-		if (buffer instanceof ArrayBuffer)
+		if (ArrayBuffer.isView(buffer)) {
+			if (buffer.BYTES_PER_ELEMENT > 1)
+				throw new TypeError;		// not a Byte Buffer
+		}
+		else
 			buffer = new Uint8Array(buffer);
 		const data = new Uint8Array(1 + buffer.length);
 		data[0] = register;
@@ -118,10 +122,21 @@ class SMBus {
 	}
 	set format(value) {
 		if ("buffer" !== value)
-			throw new Error;
+			throw new RangeError;
 	}
 
-	// compatibility
+	// inherited from i2c
+	read(count, stop = true) {
+		return this.#io.read(count, stop);
+	}
+	write(buffer, stop = true) {
+		return this.#io.write(buffer, stop);
+	}
+	writeRead(buffer, count, stop = true) {
+		return this.#io.writeRead(buffer, count, stop);
+	}
+
+	// compatibility - to be removed
 	readByte(register) {
 		trace("readByte renamed to readUint8\n");
 		return this.readUint8(register);

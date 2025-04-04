@@ -21,7 +21,53 @@
 // https://html.spec.whatwg.org/#server-sent-events
 
 import Timer from "timer";
+import Headers from "headers";
 import URL from "url";
+
+const statusTexts = {
+	100: "Continue",
+	101: "Switching Protocols",
+	200: "OK",
+	201: "Created",
+	202: "Accepted",
+	203: "Non-Authoritative Information",
+	204: "No Content",
+	205: "Reset Content",
+	206: "Partial Content",
+	300: "Multiple Choices",
+	301: "Moved Permanently",
+	302: "Found",
+	303: "See Other",
+	304: "Not Modified",
+	305: "Use Proxy",
+	307: "Temporary Redirect",
+	400: "Bad Request",
+	401: "Unauthorized",
+	402: "Payment Required",
+	403: "Forbidden",
+	404: "Not Found",
+	405: "Method Not Allowed",
+	406: "Not Acceptable",
+	407: "Proxy Authentication Required",
+	408: "Request Timeout",
+	409: "Conflict",
+	410: "Gone",
+	411: "Length Required",
+	412: "Precondition Failed",
+	413: "Payload Too Large",
+	414: "URI Too Long",
+	415: "Unsupported Media Type",
+	416: "Range Not Satisfiable",
+	417: "Expectation Failed",
+	426: "Upgrade Required",
+	500: "Internal Server Error",
+	501: "Not Implemented",
+	502: "Bad Gateway",
+	503: "Service Unavailable",
+	504: "Gateway Timeout",
+	505: "HTTP Version Not Supported",
+};
+Object.freeze(statusTexts);
 
 const CR = -1;
 const BODY = 0;
@@ -45,6 +91,9 @@ class EventSource {
 	#readystate = this.CLOSED;
 	#reconnectionTime = 10000;
 	#url;
+	#method;
+	#headers;
+	#body;
 	
 	constructor(href, options) {
 		const url = new URL(href);
@@ -68,6 +117,24 @@ class EventSource {
 			path += query;
 		this.#path = path;
 		this.#url = url.href;
+		this.#method = options.method || "GET";
+		this.#headers = new Headers();
+		this.#headers.set("accept", "text/event-stream");
+		options.headers?.forEach((value, name) => this.#headers.set(name.toLowerCase(), value));
+		if ((this.#method == "POST") || (this.#method == "PUT")) {
+			let body = options.body;
+			if (!body) 
+				rejectResponse(new URLError(this.#method + " no body"));
+			else if (!(body instanceof ArrayBuffer)) {
+				body = body.toString();
+				body = ArrayBuffer.fromString(body);
+			}
+			this.#body = body;
+			const length = this.#headers.get("content-length");
+			if (length == undefined) {
+				this.#headers.set("content-length", body.byteLength);
+			}
+		}
 		this.#connect();
 	}
 	get readystate() {
@@ -139,13 +206,16 @@ class EventSource {
 				this.#onError();
 			}
 		});
-		let headers = new Map();
-		headers.set("accept", "text/event-stream");
+		let method = this.#method;
+		let headers = this.#headers;
+		let body = this.#body;
+		let length = body.byteLength;
+		let offset = 0;
 		let buffer = null;
 		let index = 0, nameStart, nameStop, valueStart, valueStop;
 		let state = BODY;
 		let request = client.request({
-			method: "GET",
+			method,
 			path,
 			headers,
 			onHeaders: (status, headers) => {
@@ -156,7 +226,21 @@ class EventSource {
 				}
 				else {
 					client.close();
-					this.#onError();
+					this.#onError({status: status, statusText:statusTexts[status]});
+				}
+			},
+			onWritable(count) {
+				if (body) {
+					let remain = length - offset;
+					if (remain > 0) {
+						if (count > remain)
+							count = remain;
+						let view = new DataView(body, offset, count);
+						this.write(view);
+						offset += count;
+					}
+					else
+						this.write();
 				}
 			},
 			onReadable: (count) => {
@@ -249,10 +333,10 @@ class EventSource {
 			this.#callEventListeners(event);
 		}
 	}
-	#onError() {
+	#onError(error) {
 		this.#client = null;
 		this.#readystate = this.CLOSED;
-		const event = { type:"error" };
+		const event = { type:"error", ...error };
 		this.#callEventListeners(event);
 	}
 	#processField(name, value) {

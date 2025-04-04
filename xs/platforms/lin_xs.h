@@ -59,6 +59,9 @@
 #include <unistd.h>
 #include <stdbool.h>
 
+#if GNUC > 11
+	#define mxUseFloat16 1
+#endif
 #define mxUseGCCAtomics 1
 #define mxUsePOSIXThreads 1
 
@@ -84,9 +87,6 @@ extern void fxQueueWorkerJob(void* machine, void* job);
 	void* host; \
 	GSocket* socket; \
 	GSource* source; \
-	void* waiterCondition; \
-	void* waiterData; \
-	void* waiterLink; \
 	GMainContext* workerContext; \
 	GMutex workerMutex; \
 	txWorkerJob* workerQueue; \

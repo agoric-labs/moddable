@@ -37,6 +37,12 @@
 
 #include "xsAll.h"
 
+#if mxNoChunks
+#define mxUseChunkHeap 0
+#else
+#define mxUseChunkHeap 1
+#endif
+
 #define __XS__ 1
 #define __XS__a , DTOA
 #define __XS__d , ThInfo* DTOA
@@ -1592,8 +1598,10 @@ ThInfo {
 	Bigint *P5s;
 #ifdef __XS__
 	txMachine* the;
-	txByte* current;
-	int dirty;
+	#if mxUseChunkHeap
+		txByte* current;
+		int dirty;
+	#endif
 #endif
 	} ThInfo;
 
@@ -3705,9 +3713,11 @@ strtod2(const char *s00, char **se __XS__d)
 			if (c > '0' && c <= '9') {
 				L = c - '0';
 				s1 = s;
-				while((c = c_read8(++s)) >= '0' && c <= '9')
-					L = 10*L + c - '0';
-				if (s - s1 > 8 || L > 19999)
+				while((c = *++s) >= '0' && c <= '9') {
+					if (L <= 19999)
+						L = 10*L + c - '0';
+					}
+				if (L > 19999)
 					/* Avoid confusion from exponents
 					 * so large that e might overflow.
 					 */
@@ -5343,6 +5353,8 @@ dtoa_r(double dd, int mode, int ndigits, int *decpt, int *sign, char **rve, char
 #ifndef SET_INEXACT
 #ifdef Check_FLT_ROUNDS
 	try_quick = Rounding == 1;
+#else
+	try_quick = 1;
 #endif
 #endif /*SET_INEXACT*/
 #endif
@@ -6315,18 +6327,12 @@ fx_dtoa(double dd, int mode, int ndigits, int *decpt, int *sign, char **rve __XS
 static void fxDTOACleanup(txMachine* the, ThInfo* DTOA);
 static void fxDTOASetup(txMachine* the, ThInfo* DTOA);
 
-void* fxNew_dtoa(void* the) 
-{
-	return the;
-}
-
-void fxDelete_dtoa(void* dtoa) 
-{
-}
-
 void fxDTOACleanup(txMachine* the, ThInfo* DTOA)
 {
-	if (DTOA->dirty) {
+#if mxUseChunkHeap
+	if (DTOA->dirty)
+#endif
+	{
 		Bigint* b;
 		int i, c = Kmax +1 ;
 		for (i = 0; i < c; i++) {
@@ -6352,37 +6358,35 @@ static void* fxDTOAMalloc(size_t size, void* it)
 	ThInfo* DTOA = it;
 	txMachine* the = DTOA->the;
 	void* block = C_NULL;
+#if mxUseChunkHeap
 	if (the) {
-		if ((DTOA->current + size) <= (txByte*)(the->stack)) {
+		if ((DTOA->current + size) <= (txByte*)(the->firstBlock->limit)) {
 			block = DTOA->current;
 			DTOA->current += size;
+			return block;
 		}
-        else {
-            block = c_malloc(size);
-			DTOA->dirty = 1;
-        }
 	}
-	else {
-		block = c_malloc(size);
-		DTOA->dirty = 1;
-	}
+	DTOA->dirty = 1;
+#endif
+	block = c_malloc(size);
+	if (!block)
+		fxAbort(the, XS_NOT_ENOUGH_MEMORY_EXIT);
 	//fprintf(stderr, "malloc %zu %p\n", size, block);
 	return block;
 }
 
 static void fxDTOAFree(void* block, void* it)
 {
+	//fprintf(stderr, "free %p\n", block);
+#if mxUseChunkHeap
 	ThInfo* DTOA = it;
 	txMachine* the = DTOA->the;
-	//fprintf(stderr, "free %p\n", block);
     if (the) {
-        if (((txByte*)(the->stackBottom) <= (txByte*)block) && ((txByte*)block < DTOA->current)) {
-        }
-        else
-            c_free(block);
+        if (((txByte*)(the->firstBlock->current) <= (txByte*)block) && ((txByte*)block < DTOA->current))
+        	return;
     }
-    else
-		c_free(block);
+#endif
+	c_free(block);
 }
 
 void fxDTOASetup(txMachine* the, ThInfo* DTOA)
@@ -6390,7 +6394,14 @@ void fxDTOASetup(txMachine* the, ThInfo* DTOA)
 	c_memset(DTOA, 0, sizeof(ThInfo));
 	if (the) {
 		DTOA->the = the;
-		DTOA->current = (txByte*)(the->stackBottom);
+#if mxUseChunkHeap
+	#if 0
+		if ((txByte*)(the->firstBlock->limit) - (txByte*)(the->firstBlock->current) > 192)
+			DTOA->current = (txByte*)(the->firstBlock->limit) - 192;
+		else
+	#endif
+			DTOA->current = (txByte*)(the->firstBlock->current);
+#endif
 	}
 }
 

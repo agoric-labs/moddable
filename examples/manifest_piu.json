@@ -1,7 +1,10 @@
 {
+	"include": [
+		"$(MODULES)/base/easing/manifest.json"
+	],
 	"modules": {
 		"commodetto/Bitmap": "$(COMMODETTO)/commodettoBitmap",
-		"commodetto/Poco": "$(COMMODETTO)/commodettoPoco",
+		"commodetto/PocoCore": "$(COMMODETTO)/commodettoPocoCore",
 		"commodetto/*": "$(COMMODETTO)/commodettoPocoBlit",
 		"commodetto/cfe": "$(COMMODETTO)/cfeBMF",
 		"commodetto/parseBMP": "$(COMMODETTO)/commodettoParseBMP",
@@ -13,7 +16,6 @@
 		"*": [
 			  "$(PIU)/MC/piuDie",
 			  "$(PIU)/MC/piuFont",
-			  "$(PIU)/MC/piuImage",
 			  "$(PIU)/MC/piuRegion",
 			  "$(PIU)/MC/piuTexture",
 			  "$(PIU)/MC/piuView"
@@ -51,6 +53,12 @@
 		"qca4020": {
 			"modules": {
 				"setup/piu": "$(BUILD)/devices/qca4020/setup/piu"
+			},
+			"preload": "setup/piu"
+		},
+		"nrf52": {
+			"modules": {
+				"setup/piu": "$(BUILD)/devices/nrf52/setup/piu"
 			},
 			"preload": "setup/piu"
 		}

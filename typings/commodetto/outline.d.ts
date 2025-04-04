@@ -59,7 +59,8 @@ declare module "commodetto/outline" {
     clone(): Outline
     rotate(angle: number): Outline
     rotate(angle: number, cx: number, cy: number): Outline
-    scale(x: number, y: number): Outline
+    scale(scale: number): Outline
+    scale(xScale: number, yScale: number): Outline
     translate(x: number, y: number): Outline
 
     readonly bounds: {
@@ -76,7 +77,7 @@ declare module "commodetto/outline" {
     static SVGPath: SVGPath
 
     static fill(path: CommodettoPath, rule?: number): Outline
-    static stroke(path: CommodettoPath, weight: number, linecap?: number, linejoin?: number, miterLimit?: number): Outline
+    static stroke(path: CommodettoPath, weight?: number, linecap?: number, linejoin?: number, miterLimit?: number): Outline
   
     static readonly NON_ZERO_RULE: number
     static readonly EVEN_ODD_RULE: number

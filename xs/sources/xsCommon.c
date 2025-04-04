@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2017  Moddable Tech, Inc.
+ * Copyright (c) 2016-2025  Moddable Tech, Inc.
  *
  *   This file is part of the Moddable SDK Runtime.
  * 
@@ -270,9 +270,6 @@ const txString gxCodeNames[XS_CODE_COUNT] = {
 	/* XS_CODE_UNSIGNED_RIGHT_SHIFT */ "unsigned_right_shift",
 	/* XS_CODE_UNWIND_1 */ "unwind",
 	/* XS_CODE_UNWIND_2 */ "unwind_2",
-	/* XS_CODE_USED_1 */ "used_1",
-	/* XS_CODE_USED_2 */ "used_2",
-	/* XS_CODE_USING */ "using",
 	/* XS_CODE_VAR_CLOSURE_1 */ "var_closure_1",
 	/* XS_CODE_VAR_CLOSURE_2 */ "var_closure_2",
 	/* XS_CODE_VAR_LOCAL_1 */ "var_local_1",
@@ -281,7 +278,17 @@ const txString gxCodeNames[XS_CODE_COUNT] = {
 	/* XS_CODE_WITH */ "with",
 	/* XS_CODE_WITHOUT */ "without",
 	/* XS_CODE_YIELD */ "yield",
-	/* XS_CODE_PROFILE */ "profile"
+	/* XS_CODE_PROFILE */ "profile",
+	/* XS_CODE_YIELD_STAR */ "yield*",
+// mxExplicitResourceManagement	
+	/* XS_CODE_USED_1 */ "used_1",
+	/* XS_CODE_USED_2 */ "used_2",
+	/* XS_CODE_USING */ "using",
+	/* XS_CODE_USING_ASYNC */ "await using",
+	/* XS_CODE_AT_2 */ "at_2",
+	/* XS_CODE_SUPER_AT */ "super_at",
+	/* XS_CODE_SUPER_AT_2 */ "super_at_2",
+	/* XS_CODE_TRANSFER_JSON */ "transfer_json",
 };
 
 const txS1 gxCodeSizes[XS_CODE_COUNT] ICACHE_FLASH_ATTR = {
@@ -491,7 +498,7 @@ const txS1 gxCodeSizes[XS_CODE_COUNT] ICACHE_FLASH_ATTR = {
 	-4 /* XS_CODE_STRING_4 */,
 	-1 /* XS_CODE_STRING_ARCHIVE_1 */,
 	-2 /* XS_CODE_STRING_ARCHIVE_2 */,
-	-4 /* XS_CODE_STRING_ARCHIVE_2 */,
+	-4 /* XS_CODE_STRING_ARCHIVE_4 */,
 	1 /* XS_CODE_SUBTRACT */,
 	1 /* XS_CODE_SUPER */,
 	1 /* XS_CODE_SWAP */,
@@ -513,9 +520,6 @@ const txS1 gxCodeSizes[XS_CODE_COUNT] ICACHE_FLASH_ATTR = {
 	1 /* XS_CODE_UNSIGNED_RIGHT_SHIFT */,
 	2 /* XS_CODE_UNWIND_1 */,
 	3 /* XS_CODE_UNWIND_2 */,
-	2 /* XS_CODE_USED_1 */,
-	3 /* XS_CODE_USED_2 */,
-	1 /* XS_CODE_USING */,
 	2 /* XS_CODE_VAR_CLOSURE_1 */,
 	3 /* XS_CODE_VAR_CLOSURE_2 */,
 	2 /* XS_CODE_VAR_LOCAL_1 */,
@@ -525,10 +529,20 @@ const txS1 gxCodeSizes[XS_CODE_COUNT] ICACHE_FLASH_ATTR = {
 	1 /* XS_CODE_WITHOUT */,
 	1 /* XS_CODE_YIELD */,
 #ifdef mx32bitID
-	5 /* XS_CODE_PROFILE */
+	5 /* XS_CODE_PROFILE */,
 #else
-	3 /* XS_CODE_PROFILE */
+	3 /* XS_CODE_PROFILE */,
 #endif
+	1 /* XS_CODE_YIELD_STAR */,
+// mxExplicitResourceManagement	
+	2 /* XS_CODE_USED_1 */,
+	3 /* XS_CODE_USED_2 */,
+	1 /* XS_CODE_USING */,
+	1 /* XS_CODE_USING_ASYNC */,
+	1 /* XS_CODE_AT_2 */,
+	1 /* XS_CODE_SUPER_AT */,
+	1 /* XS_CODE_SUPER_AT_2 */,
+	1 /* XS_CODE_TRANSFER_JSON */,
 };
 
 #if mxUseDefaultCStackLimit
@@ -545,12 +559,42 @@ const txS1 gxCodeSizes[XS_CODE_COUNT] ICACHE_FLASH_ATTR = {
 	#define mxASANStackMargin 0
 #endif
 
+#if mxWindows
+ULONG GetCurrentThreadStackLimits_Win7( _Out_ PULONG_PTR LowLimit, _Out_ PULONG_PTR HighLimit )
+{
+    static void (WINAPI* GetCurrentThreadStackLimits)(PULONG_PTR , PULONG_PTR);
+
+    if (!GetCurrentThreadStackLimits)
+    {
+        *(void**)&GetCurrentThreadStackLimits = GetProcAddress(GetModuleHandle("kernel32"), "GetCurrentThreadStackLimits");
+
+        if (!GetCurrentThreadStackLimits)
+        {
+            NT_TIB* tib = (NT_TIB*)NtCurrentTeb();
+            *HighLimit = (ULONG_PTR)tib->StackBase;
+
+            MEMORY_BASIC_INFORMATION mbi;
+            if (VirtualQuery(tib->StackLimit, &mbi, sizeof(mbi)))
+            {
+                *LowLimit = (ULONG_PTR)mbi.AllocationBase;
+                return 0;
+            }
+
+            return GetLastError();
+        }
+    }
+
+    GetCurrentThreadStackLimits(LowLimit, HighLimit);
+    return 0;
+}
+#endif
+
 char* fxCStackLimit()
 {
 	#if mxWindows
 		ULONG_PTR low, high;
-		GetCurrentThreadStackLimits(&low, &high);
-		return (char*)low + (16 * 1024) + mxASANStackMargin;
+		GetCurrentThreadStackLimits_Win7(&low, &high);
+		return (char*)low + (32 * 1024);
 	#elif mxMacOSX
 		pthread_t self = pthread_self();
     	void* stackAddr = pthread_get_stackaddr_np(self);
@@ -574,7 +618,7 @@ char* fxCStackLimit()
 		return 192 + (char *)g_cont.stack;
 	#elif defined(__ets__) && ESP32
 		TaskStatus_t info;
-		vTaskGetTaskInfo(NULL, &info, pdFALSE, eReady);
+		vTaskGetInfo(NULL, &info, pdFALSE, eReady);
 		return 512 + (char *)info.pxStackBase;
 	#else
 		return C_NULL;
@@ -598,22 +642,21 @@ void fxDeleteScript(txScript* script)
 
 
 const txUTF8Sequence gxUTF8Sequences[] ICACHE_RODATA_ATTR = {
-	{1, 0x80, 0x00, 0*6, 0x0000007F, 0x00000000},
-	{2, 0xE0, 0xC0, 1*6, 0x000007FF, 0x00000080},
-	{3, 0xF0, 0xE0, 2*6, 0x0000FFFF, 0x00000800},
-	{4, 0xF8, 0xF0, 3*6, 0x001FFFFF, 0x00010000},
-	{5, 0xFC, 0xF8, 4*6, 0x03FFFFFF, 0x00200000},
-	{6, 0xFE, 0xFC, 5*6, 0x7FFFFFFF, 0x04000000},
-	{0, 0, 0, 0, 0, 0},
+	{1, 0x80, 0x00, 0*6, 0x0000007F},
+	{2, 0xE0, 0xC0, 1*6, 0x000007FF},
+	{3, 0xF0, 0xE0, 2*6, 0x0000FFFF},
+	{4, 0xF8, 0xF0, 3*6, 0x001FFFFF},
+	{5, 0xFC, 0xF8, 4*6, 0x03FFFFFF},
+	{6, 0xFE, 0xFC, 5*6, 0x7FFFFFFF},
+	{0, 0, 0, 0, 0},
 };
 
 static const char gxHexLower[] ICACHE_FLASH_ATTR = "0123456789abcdef";
 static const char gxHexUpper[] ICACHE_FLASH_ATTR = "0123456789ABCDEF";
-static txBoolean fxParseHex(txU1 c, txU4* value);
 
 txBoolean fxIsIdentifierFirst(txU4 c)
 {
-	#define mxIdentifierFirstCount 1322
+	#define mxIdentifierFirstCount 1358
 	static const txU2 gxIdentifierFirstTable[mxIdentifierFirstCount] ICACHE_RODATA_ATTR = {
 		36,0,29,25,5,0,2,25,48,0,11,0,5,0,6,22,2,30,2,457,5,11,15,4,8,0,2,0,130,4,2,1,
 		3,3,2,0,7,0,2,2,2,0,2,19,2,82,2,138,9,165,2,37,3,0,7,40,72,26,5,3,46,42,36,1,
@@ -629,34 +672,35 @@ txBoolean fxIsIdentifierFirst(txU4 c)
 		3,6,2,0,2,3,3,40,2,3,3,32,2,3,3,6,2,0,2,3,3,14,2,56,2,3,3,66,38,15,17,85,
 		3,5,4,619,3,16,2,25,6,74,4,10,8,17,14,18,15,17,15,12,2,2,16,51,36,0,5,0,68,88,8,40,
 		2,0,6,69,11,30,50,29,3,4,12,43,5,25,55,22,10,52,83,0,94,46,18,7,55,29,14,1,11,43,27,35,
-		42,2,11,35,3,8,8,42,3,2,42,3,2,5,2,1,4,0,6,191,65,277,3,5,3,37,3,5,3,7,2,0,
+		42,2,11,35,3,10,6,42,3,2,42,3,2,5,2,1,4,0,6,191,65,277,3,5,3,37,3,5,3,7,2,0,
 		2,0,2,0,2,30,3,52,2,6,2,0,4,2,2,6,4,3,3,5,5,12,6,2,2,6,117,0,14,0,17,12,
 		102,0,5,0,3,9,2,0,3,5,7,0,2,0,2,0,2,15,3,3,6,4,5,0,18,40,2680,228,7,3,4,1,
 		13,37,2,0,6,0,3,55,8,0,17,22,10,6,2,6,2,6,2,6,2,6,2,6,2,6,2,6,551,2,26,8,
 		8,4,3,4,5,85,5,4,2,89,2,3,6,42,2,93,18,31,49,15,513,6591,65,22156,68,45,3,268,4,15,11,1,
-		21,46,17,30,3,79,40,8,3,102,3,63,6,1,2,0,2,4,25,15,2,2,2,3,2,22,30,51,15,49,63,5,
+		21,46,17,30,3,79,40,8,3,102,3,66,3,1,2,0,2,7,22,15,2,2,2,3,2,22,30,51,15,49,63,5,
 		4,0,2,1,12,27,11,22,26,28,8,46,29,0,17,4,2,9,11,4,2,40,24,2,2,7,21,22,4,0,4,49,
 		2,0,4,1,3,4,3,0,2,0,25,2,3,10,8,2,13,5,3,5,3,5,10,6,2,6,2,42,2,13,7,114,
 		30,11171,13,22,5,48,8453,365,3,105,39,6,13,4,6,0,2,9,2,12,2,4,2,0,2,1,2,1,2,107,34,362,
 		19,63,3,53,41,11,117,4,2,134,37,25,7,25,12,88,4,5,3,5,3,5,3,2,36,11,2,25,2,18,2,1,
 		2,14,3,13,35,122,70,52,268,28,4,48,48,31,14,29,6,37,11,29,3,35,5,7,2,4,43,157,19,35,5,35,
-		5,39,9,51,13,10,2,14,2,6,2,1,2,10,2,14,2,6,2,1,68,310,10,21,11,7,25,5,2,41,2,8,
-		70,5,3,0,2,43,2,1,4,0,3,22,11,22,10,30,66,18,2,1,11,21,11,25,71,55,7,1,65,0,16,3,
-		2,2,2,28,43,28,4,28,36,7,2,27,28,53,11,21,11,18,14,17,111,72,56,50,14,50,14,35,349,41,7,1,
-		79,28,11,0,9,21,43,17,47,20,28,22,13,52,58,1,3,0,14,44,33,24,27,35,30,0,3,0,9,34,4,0,
-		13,47,15,3,22,0,2,0,36,17,2,24,20,1,64,6,2,0,2,3,2,14,2,9,8,46,39,7,3,1,3,21,
-		2,6,2,1,2,4,4,0,19,0,13,4,159,52,19,3,21,2,31,47,21,1,2,0,185,46,42,3,37,47,21,0,
-		60,42,14,0,72,26,38,6,186,43,117,63,32,7,3,0,3,7,2,1,2,23,16,0,2,0,95,7,3,38,17,0,
-		2,0,29,0,11,39,8,0,22,0,12,45,20,0,19,72,264,8,2,36,18,0,50,29,113,6,2,1,2,37,22,0,
-		26,5,2,1,2,31,15,0,328,18,16,0,2,12,2,33,125,0,80,921,103,110,18,195,2637,96,16,1071,18,5,4026,582,
-		8634,568,8,30,18,78,18,29,19,47,17,3,32,20,6,18,689,63,129,74,6,0,67,12,65,1,2,0,29,6135,9,1237,
-		43,8,8936,3,2,6,2,1,2,290,16,0,30,2,3,0,15,3,9,395,2309,106,6,12,4,8,8,9,5991,84,2,70,
-		2,1,3,0,3,1,3,3,2,11,2,0,2,6,2,64,2,3,3,7,2,6,2,27,2,3,2,4,2,0,4,6,
-		2,339,3,24,2,24,2,30,2,24,2,30,2,24,2,30,2,24,2,30,2,24,2,7,1845,30,7,5,262,61,147,44,
-		11,6,17,0,322,29,19,43,485,27,757,6,2,3,2,1,2,14,2,196,60,67,8,0,1205,3,2,26,2,1,2,0,
-		3,0,2,9,2,3,2,0,2,0,7,0,5,0,2,0,2,0,2,2,2,1,2,0,3,0,2,0,2,0,2,0,
-		2,0,2,1,2,0,3,3,2,6,2,3,2,3,2,0,2,9,2,16,6,2,2,4,2,16,4421,42719,33,4153,7,221,
-		3,5761,15,7472,3104,541,1507,4938,6,4191,
+		5,39,9,51,13,10,2,14,2,6,2,1,2,10,2,14,2,6,2,1,4,51,13,310,10,21,11,7,25,5,2,41,
+		2,8,70,5,3,0,2,43,2,1,4,0,3,22,11,22,10,30,66,18,2,1,11,21,11,25,71,55,7,1,65,0,
+		16,3,2,2,2,28,43,28,4,28,36,7,2,27,28,53,11,21,11,18,14,17,111,72,56,50,14,50,14,35,39,27,
+		10,22,251,41,7,1,17,2,60,28,11,0,9,21,43,17,47,20,28,22,13,52,58,1,3,0,14,44,33,24,27,35,
+		30,0,3,0,9,34,4,0,13,47,15,3,22,0,2,0,36,17,2,24,20,1,64,6,2,0,2,3,2,14,2,9,
+		8,46,39,7,3,1,3,21,2,6,2,1,2,4,4,0,19,0,13,4,31,9,2,0,3,0,2,37,2,0,26,0,
+		2,0,45,52,19,3,21,2,31,47,21,1,2,0,185,46,42,3,37,47,21,0,60,42,14,0,72,26,38,6,186,43,
+		117,63,32,7,3,0,3,7,2,1,2,23,16,0,2,0,95,7,3,38,17,0,2,0,29,0,11,39,8,0,22,0,
+		12,45,20,0,19,72,200,32,32,8,2,36,18,0,50,29,113,6,2,1,2,37,22,0,26,5,2,1,2,31,15,0,
+		328,18,16,0,2,12,2,33,125,0,80,921,103,110,18,195,2637,96,16,1071,18,5,26,3994,6,582,6842,29,1763,568,8,30,
+		18,78,18,29,19,47,17,3,32,20,6,18,433,44,212,63,129,74,6,0,67,12,65,1,2,0,29,6135,9,1237,42,9,
+		8936,3,2,6,2,1,2,290,16,0,30,2,3,0,15,3,9,395,2309,106,6,12,4,8,8,9,5991,84,2,70,2,1,
+		3,0,3,1,3,3,2,11,2,0,2,6,2,64,2,3,3,7,2,6,2,27,2,3,2,4,2,0,4,6,2,339,
+		3,24,2,24,2,30,2,24,2,30,2,24,2,30,2,24,2,30,2,24,2,7,1845,30,7,5,262,61,147,44,11,6,
+		17,0,322,29,19,43,485,27,229,29,3,0,496,6,2,3,2,1,2,14,2,196,60,67,8,0,1205,3,2,26,2,1,
+		2,0,3,0,2,9,2,3,2,0,2,0,7,0,5,0,2,0,2,0,2,2,2,1,2,0,3,0,2,0,2,0,
+		2,0,2,0,2,1,2,0,3,3,2,6,2,3,2,3,2,0,2,9,2,16,6,2,2,4,2,16,4421,42719,33,4153,
+		7,221,3,5761,15,7472,16,621,2467,541,1507,4938,6,4191,
 	};
 	const txU2* p = gxIdentifierFirstTable;
 	const txU2* q = p + mxIdentifierFirstCount;
@@ -674,12 +718,12 @@ txBoolean fxIsIdentifierFirst(txU4 c)
 
 txBoolean fxIsIdentifierNext(txU4 c)
 {
-	#define mxIdentifierNextCount 1538
+	#define mxIdentifierNextCount 1586
 	static const txU2 gxIdentifierNextTable[mxIdentifierNextCount] ICACHE_RODATA_ATTR = {
 		36,0,12,9,8,25,5,0,2,25,48,0,11,0,2,0,3,0,6,22,2,30,2,457,5,11,15,4,8,0,2,0,
 		18,116,2,1,3,3,2,0,7,4,2,0,2,19,2,82,2,138,2,4,3,165,2,37,3,0,7,40,9,44,2,0,
 		2,1,2,1,2,0,9,26,5,3,30,10,6,73,5,101,2,7,3,9,2,18,3,0,17,58,3,100,15,53,5,0,
-		3,0,3,45,19,27,5,10,6,23,2,5,10,73,2,128,3,9,2,18,2,7,3,1,3,21,2,6,2,0,4,3,
+		3,0,3,45,19,27,5,10,6,23,2,5,9,74,2,128,3,9,2,18,2,7,3,1,3,21,2,6,2,0,4,3,
 		3,8,3,1,3,3,9,0,5,1,2,4,3,11,11,0,2,0,3,2,2,5,5,1,3,21,2,6,2,1,2,1,
 		2,1,3,0,2,4,5,1,3,2,4,0,8,3,2,0,8,15,12,2,2,8,2,2,2,21,2,6,2,1,2,4,
 		3,9,2,2,2,2,3,0,16,3,3,9,10,6,2,2,2,7,3,1,3,21,2,6,2,1,2,4,3,8,3,1,
@@ -693,38 +737,39 @@ txBoolean fxIsIdentifierNext(txU4 c)
 		2,3,3,14,2,56,2,3,3,66,3,2,10,8,15,15,17,85,3,5,4,619,3,16,2,25,6,74,4,10,8,21,
 		10,21,12,19,13,12,2,2,2,1,13,83,4,0,5,1,3,9,34,2,2,10,7,88,8,42,6,69,11,30,2,11,
 		5,11,11,39,3,4,12,43,5,25,7,10,38,27,5,62,2,28,3,10,7,9,14,0,9,13,2,15,50,76,4,9,
-		18,8,13,115,13,55,9,9,4,48,3,8,8,42,3,2,17,2,2,38,6,533,3,5,3,37,3,5,3,7,2,0,
+		18,8,13,115,13,55,9,9,4,48,3,10,6,42,3,2,17,2,2,38,6,533,3,5,3,37,3,5,3,7,2,0,
 		2,0,2,0,2,30,3,52,2,6,2,0,4,2,2,6,4,3,3,5,5,12,6,2,2,6,16,1,50,1,20,0,
 		29,0,14,0,17,12,52,12,5,0,4,11,18,0,5,0,3,9,2,0,3,5,7,0,2,0,2,0,2,15,3,3,
 		6,4,5,0,18,40,2680,228,7,8,13,37,2,0,6,0,3,55,8,0,16,23,10,6,2,6,2,6,2,6,2,6,
-		2,6,2,6,2,6,2,31,518,2,26,14,2,4,3,4,5,85,3,6,2,89,2,3,6,42,2,93,18,31,49,15,
-		513,6591,65,22156,68,45,3,268,4,27,21,47,5,9,2,114,38,8,3,102,3,63,6,1,2,0,2,4,25,53,5,0,
-		20,51,13,69,11,9,7,23,4,0,2,48,3,35,13,28,4,64,15,10,7,30,2,54,10,13,3,9,7,22,4,72,
-		25,2,3,15,3,4,11,5,3,5,3,5,10,6,2,6,2,42,2,13,7,122,2,1,3,9,7,11171,13,22,5,48,
-		8453,365,3,105,39,6,13,4,6,11,2,12,2,4,2,0,2,1,2,1,2,107,34,362,19,63,3,53,41,11,5,15,
-		17,15,4,1,25,2,33,4,2,134,20,9,8,25,5,0,2,25,12,88,4,5,3,5,3,5,3,2,36,11,2,25,
-		2,18,2,1,2,14,3,13,35,122,70,52,137,0,131,28,4,48,16,0,32,31,14,29,6,42,6,29,3,35,5,7,
-		2,4,43,157,3,9,7,35,5,35,5,39,9,51,13,10,2,14,2,6,2,1,2,10,2,14,2,6,2,1,68,310,
+		2,6,2,6,2,6,2,31,518,2,26,14,2,4,3,4,5,85,3,6,2,94,6,42,2,93,18,31,49,15,513,6591,
+		65,22156,68,45,3,268,4,27,21,47,5,9,2,114,38,8,3,102,3,66,3,1,2,0,2,7,22,53,5,0,20,51,
+		13,69,11,9,7,23,4,0,2,48,3,35,13,28,4,64,15,10,7,30,2,54,10,13,3,9,7,22,4,72,25,2,
+		3,15,3,4,11,5,3,5,3,5,10,6,2,6,2,42,2,13,7,122,2,1,3,9,7,11171,13,22,5,48,8453,365,
+		3,105,39,6,13,4,6,11,2,12,2,4,2,0,2,1,2,1,2,107,34,362,19,63,3,53,41,11,5,15,17,15,
+		4,1,25,2,33,4,2,134,20,9,8,25,5,0,2,25,11,89,4,5,3,5,3,5,3,2,36,11,2,25,2,18,
+		2,1,2,14,3,13,35,122,70,52,137,0,131,28,4,48,16,0,32,31,14,29,6,42,6,29,3,35,5,7,2,4,
+		43,157,3,9,7,35,5,35,5,39,9,51,13,10,2,14,2,6,2,1,2,10,2,14,2,6,2,1,4,51,13,310,
 		10,21,11,7,25,5,2,41,2,8,70,5,3,0,2,43,2,1,4,0,3,22,11,22,10,30,66,18,2,1,11,21,
 		11,25,71,55,7,1,65,3,2,1,6,7,2,2,2,28,3,2,5,0,33,28,4,28,36,7,2,29,26,53,11,21,
-		11,18,14,17,111,72,56,50,14,50,14,39,9,9,327,41,2,1,4,1,76,31,11,0,9,32,32,21,43,20,28,22,
-		10,70,32,15,10,59,8,0,14,24,8,9,7,52,2,9,5,3,9,35,3,0,10,68,5,3,2,12,2,0,36,17,
-		2,36,7,3,63,6,2,0,2,3,2,14,2,9,8,58,6,9,7,3,2,7,3,1,3,21,2,6,2,1,2,4,
-		2,9,3,1,3,2,3,0,7,0,6,6,3,6,4,4,140,74,6,9,5,3,31,69,2,0,9,9,167,53,3,8,
-		24,5,35,64,4,0,12,9,39,56,8,9,55,26,3,14,5,9,7,6,186,58,102,73,22,7,3,0,3,7,2,1,
-		2,29,2,1,3,8,13,9,71,7,3,45,3,7,2,1,28,62,9,0,9,73,4,0,19,72,264,8,2,44,2,8,
-		16,9,25,29,3,21,2,13,74,6,2,1,2,43,4,0,2,1,2,8,9,9,7,5,2,1,2,36,2,1,2,5,
-		8,9,311,22,10,16,2,40,4,4,14,9,87,0,80,921,103,110,18,195,2637,96,16,1071,17,21,4011,582,8634,568,8,30,
-		2,9,7,78,2,9,7,29,3,4,12,54,10,3,13,9,10,20,6,18,689,63,129,74,5,56,8,16,65,1,2,1,
-		12,1,15,6135,9,1237,43,8,8936,3,2,6,2,1,2,290,16,0,30,2,3,0,15,3,9,395,2309,106,6,12,4,8,
-		8,9,4,1,4706,45,3,22,543,4,4,5,9,7,3,6,31,3,149,2,444,84,2,70,2,1,3,0,3,1,3,3,
-		2,11,2,0,2,6,2,64,2,3,3,7,2,6,2,27,2,3,2,4,2,0,4,6,2,339,3,24,2,24,2,30,
-		2,24,2,30,2,24,2,30,2,24,2,30,2,24,2,7,3,49,513,54,5,49,9,0,15,0,23,4,2,14,1105,30,
-		7,5,214,6,2,16,3,6,2,1,2,4,6,61,34,0,113,44,4,13,3,9,5,0,322,30,18,57,471,41,743,6,
-		2,3,2,1,2,14,2,196,12,6,42,75,5,9,1191,3,2,26,2,1,2,0,3,0,2,9,2,3,2,0,2,0,
-		7,0,5,0,2,0,2,0,2,2,2,1,2,0,3,0,2,0,2,0,2,0,2,0,2,1,2,0,3,3,2,6,
-		2,3,2,3,2,0,2,9,2,16,6,2,2,4,2,16,3381,9,1031,42719,33,4153,7,221,3,5761,15,7472,3104,541,1507,4938,
-		6,4191,
+		11,18,14,17,111,72,56,50,14,50,14,39,9,9,7,37,4,4,2,22,251,41,2,1,4,1,17,2,56,32,11,0,
+		9,32,32,21,43,20,28,22,10,70,32,15,10,59,8,0,14,24,8,9,7,52,2,9,5,3,9,35,3,0,10,68,
+		5,3,2,12,2,0,36,17,2,36,7,3,63,6,2,0,2,3,2,14,2,9,8,58,6,9,7,3,2,7,3,1,
+		3,21,2,6,2,1,2,4,2,9,3,1,3,2,3,0,7,0,6,6,3,6,4,4,12,9,2,0,3,0,2,37,
+		2,9,2,0,3,0,2,3,2,7,14,1,30,74,6,9,5,3,31,69,2,0,9,9,167,53,3,8,24,5,35,64,
+		4,0,12,9,39,56,8,9,7,19,29,26,3,14,5,9,7,6,186,58,102,73,22,7,3,0,3,7,2,1,2,29,
+		2,1,3,8,13,9,71,7,3,45,3,7,2,1,28,62,9,0,9,73,4,0,19,72,200,32,16,9,7,8,2,44,
+		2,8,16,9,25,29,3,21,2,13,74,6,2,1,2,43,4,0,2,1,2,8,9,9,7,5,2,1,2,36,2,1,
+		2,5,8,9,311,22,10,16,2,40,4,4,14,10,86,0,80,921,103,110,18,195,2637,96,16,1071,17,21,11,3994,6,582,
+		6842,57,1735,568,8,30,2,9,7,78,2,9,7,29,3,4,12,54,10,3,13,9,10,20,6,18,433,44,4,9,199,63,
+		129,74,5,56,8,16,65,1,2,1,12,1,15,6135,9,1237,42,9,8936,3,2,6,2,1,2,290,16,0,30,2,3,0,
+		15,3,9,395,2309,106,6,12,4,8,8,9,4,1,4178,9,519,45,3,22,543,4,4,5,9,7,3,6,31,3,149,2,
+		444,84,2,70,2,1,3,0,3,1,3,3,2,11,2,0,2,6,2,64,2,3,3,7,2,6,2,27,2,3,2,4,
+		2,0,4,6,2,339,3,24,2,24,2,30,2,24,2,30,2,24,2,30,2,24,2,30,2,24,2,7,3,49,513,54,
+		5,49,9,0,15,0,23,4,2,14,1105,30,7,5,214,6,2,16,3,6,2,1,2,4,6,61,34,0,113,44,4,13,
+		3,9,5,0,322,30,18,57,471,41,215,42,486,6,2,3,2,1,2,14,2,196,12,6,42,75,5,9,1191,3,2,26,
+		2,1,2,0,3,0,2,9,2,3,2,0,2,0,7,0,5,0,2,0,2,0,2,2,2,1,2,0,3,0,2,0,
+		2,0,2,0,2,0,2,1,2,0,3,3,2,6,2,3,2,3,2,0,2,9,2,16,6,2,2,4,2,16,3381,9,
+		1031,42719,33,4153,7,221,3,5761,15,7472,16,621,2467,541,1507,4938,6,4191,
 	};
 	const txU2* p = gxIdentifierNextTable;
 	const txU2* q = p + mxIdentifierNextCount;
@@ -1021,6 +1066,21 @@ txSize fxUTF8Length(txInteger character)
 }
 
 #if mxCESU8
+
+int fxCESU8Compare(txString p1, txString p2)
+{
+	txInteger c1, c2;
+	while (*p1 && *p2) {
+		p1 = fxCESU8Decode(p1, &c1);
+		p2 = fxCESU8Decode(p2, &c2);
+		if (c1 < c2) return -1;
+		if (c1 > c2) return 1;
+	}
+	if (*p1) return 1;
+	if (*p2) return -1;
+	return 0;
+}
+
 txString fxCESU8Decode(txString string, txInteger* character)
 {
 	txInteger result;
@@ -1116,18 +1176,22 @@ txSize fxUTF8ToUnicodeOffset(txString theString, txSize theOffset)
 		return -1;
 }
 
-#if 0
-txSize fxUnicodeLength(txString theString)
+#if 1
+txSize fxUnicodeLength(txString theString, txSize* byteLength)
 {
 	txU1* p = (txU1*)theString;
 	txU1 c;
-	txSize anIndex = 0;
+	txSize unicodeLength = 0;
+	txSize utf8Length = 0;
 	
 	while ((c = c_read8(p++))) {
 		if ((c & 0xC0) != 0x80)
-			anIndex++;
+			unicodeLength++;
+		utf8Length++;
 	}
-	return anIndex;
+	if (byteLength)
+		*byteLength = utf8Length;
+	return unicodeLength;
 }
 #else
  // http://www.daemonology.net/blog/2008-06-05-faster-utf8-strlen.html
@@ -1139,7 +1203,7 @@ txSize fxUnicodeLength(txString theString)
 		__attribute__((no_sanitize("address"))) 
 	#endif
 #endif
-txSize fxUnicodeLength(txString _s)
+txSize fxUnicodeLength(txString _s, txSize* byteLength)
 {
 	const char * s;
 	size_t count = 0;
@@ -1210,7 +1274,7 @@ txSize fxUnicodeToUTF8Offset(txString theString, txSize theOffset)
 		return -1;
 }
 
-txFlag fxIntegerToIndex(void* dtoa, txInteger theInteger, txIndex* theIndex)
+txFlag fxIntegerToIndex(void* the, txInteger theInteger, txIndex* theIndex)
 {
 	if (0 <= theInteger) {
 		*theIndex = (txIndex)theInteger;
@@ -1219,7 +1283,7 @@ txFlag fxIntegerToIndex(void* dtoa, txInteger theInteger, txIndex* theIndex)
 	return 0;
 }
 
-txFlag fxNumberToIndex(void* dtoa, txNumber number, txIndex* theIndex)
+txFlag fxNumberToIndex(void* the, txNumber number, txIndex* theIndex)
 {
 	txIndex integer = (txIndex)number;
 	txNumber check = integer;
@@ -1230,7 +1294,7 @@ txFlag fxNumberToIndex(void* dtoa, txNumber number, txIndex* theIndex)
 	return 0;
 }
 
-txFlag fxStringToIndex(void* dtoa, txString theString, txIndex* theIndex)
+txFlag fxStringToIndex(void* the, txString theString, txIndex* theIndex)
 {
 	char buffer[256], c;
 	txNumber number;
@@ -1240,11 +1304,11 @@ txFlag fxStringToIndex(void* dtoa, txString theString, txIndex* theIndex)
 	c = c_read8(theString);
 	if (('+' != c) && ('-' != c) && ('.' != c) && !(('0' <= c) && ('9' >= c)))
 		return 0;
-	number = fxStringToNumber(dtoa, theString, 1);
+	number = fxStringToNumber(the, theString, 1);
 	integer = (txIndex)number;
 	check = integer;
 	if ((number == check) && (integer < 4294967295u)) {
-		fxNumberToString(dtoa, number, buffer, sizeof(buffer), 0, 0);
+		fxNumberToString(the, number, buffer, sizeof(buffer), 0, 0);
 		if (!c_strcmp(theString, buffer)) {
 			*theIndex = integer;
 			return 1;
@@ -1256,7 +1320,6 @@ txFlag fxStringToIndex(void* dtoa, txString theString, txIndex* theIndex)
 const txString gxIDStrings[XS_ID_COUNT] = {
 	"@",
 	"Symbol.asyncIterator",
-	"Symbol.dispose",
 	"Symbol.hasInstance",
 	"Symbol.isConcatSpreadable",
 	"Symbol.iterator",
@@ -1269,6 +1332,10 @@ const txString gxIDStrings[XS_ID_COUNT] = {
 	"Symbol.toPrimitive",
 	"Symbol.toStringTag",
 	"Symbol.unscopables",
+#if mxExplicitResourceManagement	
+	"Symbol.asyncDispose",
+	"Symbol.dispose",
+#endif
 	"AggregateError",
 	"Array",
 	"ArrayBuffer",
@@ -1279,7 +1346,6 @@ const txString gxIDStrings[XS_ID_COUNT] = {
 	"Boolean",
 	"DataView",
 	"Date",
-	"DisposableStack",
 	"Error",
 	"EvalError",
 	"FinalizationRegistry",
@@ -1303,7 +1369,6 @@ const txString gxIDStrings[XS_ID_COUNT] = {
 	"Set",
 	"SharedArrayBuffer",
 	"String",
-	"SuppressedError",
 	"Symbol",
 	"SyntaxError",
 	"TypeError",
@@ -1327,11 +1392,25 @@ const txString gxIDStrings[XS_ID_COUNT] = {
 	"parseInt",
 	"trace",
 	"unescape",
+#if mxECMAScript2025	
+	"Iterator",
+#endif
+#if mxExplicitResourceManagement	
+	"AsyncDisposableStack",
+	"DisposableStack",
+	"SuppressedError",
+#endif	
+#if mxFloat16
+	"Float16Array",
+#endif
 	"Infinity",
 	"NaN",
 	"undefined",
 	"Compartment",
 	"Function",
+#if mxModuleStuff
+	"ModuleStuff",
+#endif
 	"eval",
 	"AsyncFunction",
 	"AsyncGeneratorFunction",
@@ -1363,7 +1442,6 @@ const txString gxIDStrings[XS_ID_COUNT] = {
 	"acos",
 	"acosh",
 	"add",
-	"adopt",
 	"aliases",
 	"all",
 	"allSettled",
@@ -1425,16 +1503,12 @@ const txString gxIDStrings[XS_ID_COUNT] = {
 	"count",
 	"create",
 	"default",
-	"defer",
 	"defineProperties",
 	"defineProperty",
 	"delete",
 	"deleteProperty",
 	"deref",
 	"description",
-	"detached",
-	"dispose",
-	"disposed",
 	"done",
 	"dotAll",
 	"eachDown",
@@ -1443,7 +1517,6 @@ const txString gxIDStrings[XS_ID_COUNT] = {
 	"entries",
 	"enumerable",
 	"enumerate",
-	"error",
 	"errors",
 	"evaluate",
 	"every",
@@ -1576,7 +1649,6 @@ const txString gxIDStrings[XS_ID_COUNT] = {
 	"min",
 	"mod",
 	"module",
-	"move",
 	"multiline",
 	"name",
 	"needsImport",
@@ -1677,7 +1749,6 @@ const txString gxIDStrings[XS_ID_COUNT] = {
 	"subarray",
 	"substr",
 	"substring",
-	"suppressed",
 	"tan",
 	"tanh",
 	"test",
@@ -1698,9 +1769,6 @@ const txString gxIDStrings[XS_ID_COUNT] = {
 	"toLowerCase",
 	"toPrecision",
 	"toPrimitive",
-	"toReversed",
-	"toSorted",
-	"toSpliced",
 	"toString",
 	"toStringTag",
 	"toTimeString",
@@ -1719,16 +1787,88 @@ const txString gxIDStrings[XS_ID_COUNT] = {
 	"unscopables",
 	"unshift",
 	"uri",
-	"use",
 	"value",
 	"valueOf",
 	"values",
 	"wait",
 	"wake",
 	"weak",
-	"with",
 	"writable",
 	"xor",
 	"",
-	"<xsbug:script>"
+	"<xsbug:script>",
+#if mxECMAScript2023	
+	"detached",
+	"irandom",
+	"toReversed",
+	"toSorted",
+	"toSpliced",
+	"with",
+#endif
+#if mxExplicitResourceManagement	
+	"adopt",
+	"asyncDispose",
+	"defer",
+	"dispose",
+	"disposeAsync",
+	"disposed",
+	"error",
+	"move",
+	"suppressed",
+	"use",
+#endif
+	"(onFullfilled)",
+	"(onRejected)",
+	"(result)",
+#if mxECMAScript2024
+	"async",
+	"groupBy",	
+	"isWellFormed",	
+	"promise",	
+	"toWellFormed",	
+	"transferToFixedLength",
+	"unicodeSets",
+	"waitAsync",	
+	"withResolvers",
+#endif
+#if mxUint8ArrayBase64
+	"alphabet",
+	"fromBase64",
+	"fromHex",
+	"lastChunkHandling",
+	"omitPadding",
+	"read",
+	"setFromBase64",
+	"setFromHex",
+	"toBase64",
+	"toHex",
+	"written",
+#endif
+#if mxECMAScript2025
+	"difference",
+	"drop",
+	"intersection",
+	"isDisjointFrom",
+	"isSubsetOf",
+	"isSupersetOf",
+	"options",
+	"symmetricDifference",
+	"take",
+	"toArray",
+	"try",
+	"type",
+	"union",
+#endif
+#if mxFloat16
+	"f16round",
+	"getFloat16",
+	"setFloat16",
+#endif
+#if mxImmutableArrayBuffers
+	"immutable",
+	"transferToImmutable",
+#endif
+#if mxErrorIsError
+	"isError",
+#endif
 };

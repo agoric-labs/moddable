@@ -93,12 +93,7 @@ C_DEFINES = \
 	/D XS_ARCHIVE=1 \
 	/D INCLUDE_XSPLATFORM=1 \
 	/D XSPLATFORM=\"win_xs.h\" \
-	/D mxRun=1 \
-	/D mxParse=1 \
-	/D mxNoFunctionLength=1 \
-	/D mxNoFunctionName=1 \
-	/D mxHostFunctionPrimitive=1 \
-	/D mxFewGlobalsTable=1 \
+	/D mxStringInfoCacheLength=4 \
 	/D kModdableToolsVersion=\"$(TOOLS_VERSION)\"
 !IF "$(INSTRUMENT)"=="1"
 C_DEFINES = $(C_DEFINES) \
@@ -141,12 +136,6 @@ LINK_OPTIONS = /incremental:no /nologo /subsystem:console
 !IF "$(DEBUG)"=="1"
 LINK_OPTIONS = $(LINK_OPTIONS) /debug
 !ENDIF
-
-MCLOCAL = $(BUILD_DIR)/bin/mac/debug/mclocal
-MCREZ = $(BUILD_DIR)\bin\win\debug\mcrez
-XSC = $(BUILD_DIR)\bin\win\debug\xsc
-XSID = $(BUILD_DIR)\bin\win\debug\xsid
-XSL = $(BUILD_DIR)\bin\win\debug\xsl
 	
 all: build
 
@@ -185,6 +174,6 @@ $(TMP_DIR)\mc.xs.obj: $(TMP_DIR)\mc.xs.c $(HEADERS)
 	
 $(TMP_DIR)\mc.xs.c: $(MODULES) $(MANIFEST)
 	@echo # xsl modules
-	$(XSL) -b $(MODULES_DIR) -o $(TMP_DIR) $(PRELOADS) $(CREATION) $(MODULES)
+	xsl -b $(MODULES_DIR) -o $(TMP_DIR) $(PRELOADS) $(CREATION) $(MODULES)
 	
 	

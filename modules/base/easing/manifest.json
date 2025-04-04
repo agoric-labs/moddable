@@ -1,0 +1,15 @@
+{
+	"modules": {
+		"*": "./easing"
+	},
+	"preload": "easing",
+	"typescript": {
+		"tsconfig": {
+			"compilerOptions": {
+				"types": [
+					"$(MODDABLE)/typings/easing"
+				]
+			}
+		}
+	}
+}

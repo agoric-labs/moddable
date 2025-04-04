@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2019-2020 Bradley Farias
+* Copyright (c) 2019-2024 Bradley Farias
 *
 *   This file is part of the Moddable SDK Tools.
 *
@@ -20,19 +20,18 @@
 
 declare module "wifi" {
   export type WiFiOptions = {
-    bssid?: string,
+    bssid?: ArrayBuffer,
     ssid: string,
     password?: string
   }
-  export type WiFiCallback = (message: "connect" | "gotIP" | "lostIP" | "disconnect") => void
+  export type WiFiCallback = (message: "connect" | "gotIP" | "lostIP" | "disconnect" | "station_connect" | "station_disconnect") => void
   export type WiFiScanCallback = (item: {
     ssid: string,
     authentication: string,
     rssi: number,
     bssid: ArrayBuffer,
   } | null) => void;
-  export type StationMode = 1;
-  export type AccessPointMode = 2;
+  export type WiFiMode = -5 | 0 | 1 | 2 | 3;
   export type ScanOptions = {hidden?: boolean, channel?: number}
   export type AccessPointOptions = {
     ssid: string,
@@ -44,15 +43,23 @@ declare module "wifi" {
   }
 
   class WiFi {
-    static gotIP: "gotIP";
-    static lostIP: "lostIP";
-    static connected: "connect";
-    static disconnected: "disconnect";
-    
-    constructor(options: WiFiOptions, callback: WiFiCallback);
+    static readonly gotIP: "gotIP";
+    static readonly lostIP: "lostIP";
+    static readonly connected: "connect";
+    static readonly disconnected: "disconnect";
+    static readonly station_connected: "station_connect";
+    static readonly station_disconnected: "station_disconnect";
+    static readonly Mode: {
+      off: -5,
+      none: 0,
+      station: 1,
+      accessPoint: 2,
+    };
+
+    constructor(options?: WiFiOptions, callback?: WiFiCallback);
     close(): void;
     static scan(options: ScanOptions, callback: WiFiScanCallback): void;
-    static mode: StationMode | AccessPointMode;
+    static mode: WiFiMode;
     static connect(options?: WiFiOptions): void;
     static disconnect(): void;
     static accessPoint(options: AccessPointOptions): void;

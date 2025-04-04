@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022  Moddable Tech, Inc.
+ * Copyright (c) 2022-2024  Moddable Tech, Inc.
  *
  *   This file is part of the Moddable SDK Runtime.
  * 
@@ -18,7 +18,6 @@
  *
  */
 
-import Base64 from "base64";
 import BER from "ber";
 
 class Transform {
@@ -26,23 +25,30 @@ class Transform {
 		if ("string" !== typeof source)
 			source = String.fromArrayBuffer(source);
 
-		let start = source.indexOf("-----BEGIN CERTIFICATE-----"), end = -1, offset;
+		let start = source.indexOf("-----BEGIN CERTIFICATE-----"), end = -1;
 		if (start >= 0) {
-			offset = 28;
-			end = source.indexOf("-----END CERTIFICATE-----", offset)
+			start += 28;
+			end = source.indexOf("-----END CERTIFICATE-----", start)
 		}
 		else {
 			start = source.indexOf("-----BEGIN RSA PRIVATE KEY-----");
 			if (start >= 0) {
-				offset = 32;
-				end = source.indexOf("-----END RSA PRIVATE KEY-----", offset)
+				start += 32;
+				end = source.indexOf("-----END RSA PRIVATE KEY-----", start)
+			}
+			else {
+				start = source.indexOf("-----BEGIN PRIVATE KEY-----");
+				if (start >= 0) {
+					start += 28;
+					end = source.indexOf("-----END PRIVATE KEY-----", start)
+				}
 			}
 		}
 
 		if (end < 0)
-			throw new Error("no delimeter");
+			throw new Error("no delimiter");
 
-		return Base64.decode(source.slice(start + offset, end));
+		return Uint8Array.fromBase64(source.slice(start, end)).buffer;
 	}
 	static privateKeyToPrivateKeyInfo(source, id = [1, 2, 840, 113549, 1, 1, 1] /* // PKCS#1 OID */) {	// https://datatracker.ietf.org/doc/html/rfc5208#section-5
 		return BER.encode([

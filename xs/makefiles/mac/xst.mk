@@ -46,31 +46,24 @@ OSSFUZZ ?= 0
 OSSFUZZ_JSONPARSE ?= 0
 FUZZING ?= 0
 
+METERING ?= 0
+
 C_OPTIONS = \
 	-fno-common \
 	$(MACOS_ARCH) \
 	$(MACOS_VERSION_MIN) \
 	-DINCLUDE_XSPLATFORM \
 	-DXSPLATFORM=\"xst.h\" \
-	-DmxAliasInstance=0 \
 	-DmxDebug=1 \
-	-DmxExplicitResourceManagement=1 \
-	-DmxKeysGarbageCollection=1 \
-	-DmxLockdown=1 \
 	-DmxNoConsole=1 \
-	-DmxParse=1 \
 	-DmxProfile=1 \
-	-DmxRun=1 \
-	-DmxSloppy=1 \
-	-DmxSnapshot=1 \
-	-DmxRegExpUnicodePropertyEscapes=1 \
-	-DmxStringNormalize=1 \
-	-DmxMinusZero=1 \
+	-DmxStringInfoCacheLength=4 \
 	-I$(INC_DIR) \
 	-I$(PLT_DIR) \
 	-I$(SRC_DIR) \
 	-I$(TLS_DIR) \
 	-I$(TLS_DIR)/yaml \
+	-I$(TLS_DIR)/fdlibm \
 	-I$(TMP_DIR)
 ifneq ("x$(SDKROOT)", "x")
 	C_OPTIONS += -isysroot $(SDKROOT)
@@ -89,8 +82,15 @@ ifneq ("x$(SDKROOT)", "x")
 endif
 
 ifeq ($(GOAL),debug)
-	C_OPTIONS += -DmxASANStackMargin=131072 -fsanitize=address -fno-omit-frame-pointer -fsanitize-blacklist=xst_no_asan.txt
-	LINK_OPTIONS += -fsanitize=address -fno-omit-frame-pointer
+	ifeq ($(SANITIZER), undefined)
+		C_OPTIONS += -fsanitize=bool,builtin,enum,integer-divide-by-zero,null,object-size,return,returns-nonnull-attribute,shift,signed-integer-overflow,unreachable,vla-bound,vptr -fno-sanitize-recover=bool,builtin,enum,integer-divide-by-zero,null,object-size,return,returns-nonnull-attribute,shift,signed-integer-overflow,unreachable,vla-bound,vptr,array-bounds,function
+		LINK_OPTIONS += -fsanitize=bool,builtin,enum,integer-divide-by-zero,null,object-size,return,returns-nonnull-attribute,shift,signed-integer-overflow,unreachable,vla-bound,vptr -fno-sanitize-recover=bool,builtin,enum,integer-divide-by-zero,null,object-size,return,returns-nonnull-attribute,shift,signed-integer-overflow,unreachable,vla-bound,vptr,array-bounds,function
+	else
+		C_OPTIONS += -fsanitize=address -fsanitize-blacklist=xst_no_asan.txt
+		LINK_OPTIONS += -fsanitize=address
+	endif
+	C_OPTIONS += -DmxASANStackMargin=131072 -fno-omit-frame-pointer
+	LINK_OPTIONS += -fno-omit-frame-pointer
 
 	ifneq ($(FUZZING),0)
 		C_OPTIONS += -DmxNoChunks=1
@@ -107,6 +107,10 @@ ifeq ($(GOAL),debug)
 	endif
 	ifneq ($(FUZZILLI),0)
 		C_OPTIONS += -DFUZZILLI=1 -fsanitize-coverage=trace-pc-guard
+	endif
+	
+	ifneq ($(METERING),0)
+		C_OPTIONS += -DmxMetering=1
 	endif
 endif
 
@@ -167,9 +171,38 @@ OBJECTS = \
 	$(TMP_DIR)/textdecoder.o \
 	$(TMP_DIR)/textencoder.o \
 	$(TMP_DIR)/modBase64.o \
-	$(TMP_DIR)/xst.o
+	$(TMP_DIR)/xst.o \
+	$(TMP_DIR)/xst262.o \
+	$(TMP_DIR)/xstFuzz.o \
+	$(TMP_DIR)/e_acos.o \
+	$(TMP_DIR)/e_acosh.o \
+	$(TMP_DIR)/e_asin.o \
+	$(TMP_DIR)/e_atan2.o \
+	$(TMP_DIR)/e_atanh.o \
+	$(TMP_DIR)/e_cosh.o \
+	$(TMP_DIR)/e_exp.o \
+	$(TMP_DIR)/e_hypot.o \
+	$(TMP_DIR)/e_log.o \
+	$(TMP_DIR)/e_log10.o \
+	$(TMP_DIR)/e_pow.o \
+	$(TMP_DIR)/e_rem_pio2.o \
+	$(TMP_DIR)/e_sinh.o \
+	$(TMP_DIR)/k_cos.o \
+	$(TMP_DIR)/k_exp.o \
+	$(TMP_DIR)/k_rem_pio2.o \
+	$(TMP_DIR)/k_sin.o \
+	$(TMP_DIR)/k_tan.o \
+	$(TMP_DIR)/s_asinh.o \
+	$(TMP_DIR)/s_atan.o \
+	$(TMP_DIR)/s_cos.o \
+	$(TMP_DIR)/s_expm1.o \
+	$(TMP_DIR)/s_log1p.o \
+	$(TMP_DIR)/s_scalbn.o \
+	$(TMP_DIR)/s_sin.o \
+	$(TMP_DIR)/s_tan.o \
+	$(TMP_DIR)/s_tanh.o
 
-VPATH += $(SRC_DIR) $(TLS_DIR) $(TLS_DIR)/yaml
+VPATH += $(SRC_DIR) $(TLS_DIR) $(TLS_DIR)/fdlibm $(TLS_DIR)/yaml
 VPATH += $(MODDABLE)/modules/data/text/decoder
 VPATH += $(MODDABLE)/modules/data/text/encoder
 VPATH += $(MODDABLE)/modules/data/base64
@@ -195,6 +228,7 @@ $(OBJECTS): $(PLT_DIR)/xsPlatform.h
 $(OBJECTS): $(SRC_DIR)/xsCommon.h
 $(OBJECTS): $(SRC_DIR)/xsAll.h
 $(OBJECTS): $(SRC_DIR)/xsScript.h
+$(OBJECTS): $(TLS_DIR)/fdlibm/math_private.h
 $(TMP_DIR)/%.o: %.c
 	@echo "#" $(NAME) $(GOAL) ": cc" $(<F)
 	$(CC) $< $(C_OPTIONS) -c -o $@

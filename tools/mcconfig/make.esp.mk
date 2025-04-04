@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2016-2023  Moddable Tech, Inc.
+# Copyright (c) 2016-2025  Moddable Tech, Inc.
 #
 #   This file is part of the Moddable SDK Tools.
 # 
@@ -17,12 +17,12 @@
 #   along with the Moddable SDK Tools.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-ESP_BASE ?= $(HOME)/esp
+# ESP_BASE ?= $(HOME)/esp
 HOST_OS := $(shell uname)
 
 XS_GIT_VERSION ?= $(shell git -C $(MODDABLE) describe --tags --always --dirty 2>/dev/null)
 ESP_SDK_RELEASE ?= esp8266-2.3.0
-ARDUINO_ROOT ?= $(ESP_BASE)/$(ESP_SDK_RELEASE)
+# ARDUINO_ROOT ?= $(ESP_BASE)/$(ESP_SDK_RELEASE)
 ESPRESSIF_SDK_ROOT ?= $(ESP_BASE)/ESP8266_RTOS_SDK
 ESP_TOOLS_SDK_ROOT = $(ARDUINO_ROOT)/tools/sdk
 ARDUINO_ESP8266 = $(ARDUINO_ROOT)/cores/esp8266
@@ -50,11 +50,8 @@ endif
 UPLOAD_SPEED ?= 921600
 DEBUGGER_SPEED ?= 921600
 ifeq ($(HOST_OS),Darwin)
-	ifeq ($(findstring _13.,_$(shell sw_vers -productVersion)),_13.)
-		UPLOAD_PORT ?= /dev/cu.usbserial-0001
-	else ifeq ($(findstring _12.,_$(shell sw_vers -productVersion)),_12.)
-		UPLOAD_PORT ?= /dev/cu.usbserial-0001
-	else ifeq ($(findstring _11.,_$(shell sw_vers -productVersion)),_11.)
+	VERS = $(shell sw_vers -productVersion | cut -f1 -d.)
+	ifeq ($(shell test $(VERS) -gt 10; echo $$?), 0)
 		UPLOAD_PORT ?= /dev/cu.usbserial-0001
 	else
 		UPLOAD_PORT ?= /dev/cu.SLAB_USBtoUART
@@ -118,7 +115,7 @@ SDK_SRC = \
 	$(ARDUINO_ESP8266)/Schedule.cpp \
 	$(PLATFORM_DIR)/lib/bsearch/bsearch.c \
 	$(PLATFORM_DIR)/lib/fmod/e_fmod.c \
-	$(PLATFORM_DIR)/lib/i2c/core_esp8266_si2c.c \
+	$(PLATFORM_DIR)/lib/i2c/core_esp8266_si2c_patched.c \
 	$(PLATFORM_DIR)/lib/rtc/rtctime.c \
 	$(PLATFORM_DIR)/lib/tinyi2s/tinyi2s.c \
 	$(PLATFORM_DIR)/lib/tinyprintf/tinyprintf.c \
@@ -225,23 +222,6 @@ AR  = $(TOOLS_BIN)/xtensa-lx106-elf-ar
 OTA_TOOL = $(TOOLS_ROOT)/espota.py
 ESPTOOL = $(ESPRESSIF_SDK_ROOT)/components/esptool_py/esptool/esptool.py
 
-ifeq ($(HOST_OS),Darwin)
-MODDABLE_TOOLS_DIR = $(BUILD_DIR)/bin/mac/release
-else
-MODDABLE_TOOLS_DIR = $(BUILD_DIR)/bin/lin/release
-endif
-BUILDCLUT = $(MODDABLE_TOOLS_DIR)/buildclut
-COMPRESSBMF = $(MODDABLE_TOOLS_DIR)/compressbmf
-RLE4ENCODE = $(MODDABLE_TOOLS_DIR)/rle4encode
-MCLOCAL = $(MODDABLE_TOOLS_DIR)/mclocal
-MCREZ = $(MODDABLE_TOOLS_DIR)/mcrez
-PNG2BMP = $(MODDABLE_TOOLS_DIR)/png2bmp
-IMAGE2CS = $(MODDABLE_TOOLS_DIR)/image2cs
-WAV2MAUD = $(MODDABLE_TOOLS_DIR)/wav2maud
-XSC = $(MODDABLE_TOOLS_DIR)/xsc
-XSID = $(MODDABLE_TOOLS_DIR)/xsid
-XSL = $(MODDABLE_TOOLS_DIR)/xsl
-
 C_DEFINES = \
 	-D__ets__ \
 	-DICACHE_FLASH \
@@ -253,10 +233,9 @@ C_DEFINES = \
 	-DESP8266 \
 	-DCONT_STACKSIZE=4608 \
 	-DmxUseDefaultSharedChunks=1 \
-	-DmxRun=1 \
 	-DmxNoConsole=1 \
-	-DkCommodettoBitmapFormat=$(DISPLAY) \
-	-DkPocoRotation=$(ROTATION)
+	-DkCommodettoBitmapFormat=$(COMMODETTOBITMAPFORMAT) \
+	-DkPocoRotation=$(POCOROTATION)
 ifeq ($(DEBUG),1)
 	C_DEFINES += -DmxDebug=1 -DDEBUGGER_SPEED=$(DEBUGGER_SPEED)
 endif
@@ -303,21 +282,24 @@ VPATH += $(SDK_DIRS) $(XS_DIRS)
 
 ifeq ($(DEBUG),1)
 	LAUNCH = debug
+	START_XSBUG =
 	ifeq ($(HOST_OS),Darwin)
-		ifeq ($(XSBUG_LOG),1)
-			START_XSBUG =
-			START_SERIAL2XSBUG = export XSBUG_PORT=$(XSBUG_PORT) && export XSBUG_HOST=$(XSBUG_HOST) && cd $(MODDABLE)/tools/xsbug-log && node xsbug-log $(LOG_LAUNCH) $(BUILD_DIR)/bin/mac/release/serial2xsbug $(UPLOAD_PORT) $(DEBUGGER_SPEED) 8N1 -elf $(TMP_DIR)/main.elf -bin $(TOOLS_BIN)
+		ifeq ("$(XSBUG_LAUNCH)","log")
+			CONNECT_XSBUG = export XSBUG_PORT=$(XSBUG_PORT) && export XSBUG_HOST=$(XSBUG_HOST) && cd $(MODDABLE)/tools/xsbug-log && node xsbug-log $(LOG_LAUNCH) serial2xsbug $(UPLOAD_PORT) $(DEBUGGER_SPEED) 8N1 -elf $(TMP_DIR)/main.elf -bin $(TOOLS_BIN)
 		else
-			START_XSBUG = open -a $(BUILD_DIR)/bin/mac/release/xsbug.app -g
-			START_SERIAL2XSBUG = export XSBUG_PORT=$(XSBUG_PORT) && export XSBUG_HOST=$(XSBUG_HOST) && $(BUILD_DIR)/bin/mac/release/serial2xsbug $(UPLOAD_PORT) $(DEBUGGER_SPEED) 8N1 -elf $(TMP_DIR)/main.elf -bin $(TOOLS_BIN)
+			CONNECT_XSBUG = export XSBUG_PORT=$(XSBUG_PORT) && export XSBUG_HOST=$(XSBUG_HOST) && serial2xsbug $(UPLOAD_PORT) $(DEBUGGER_SPEED) 8N1 -elf $(TMP_DIR)/main.elf -bin $(TOOLS_BIN)
+			ifeq ("$(XSBUG_LAUNCH)","app")
+				START_XSBUG = open -a $(BUILD_DIR)/bin/mac/release/xsbug.app -g
+			endif
 		endif
 	else
-		ifeq ($(XSBUG_LOG),1)
-			START_XSBUG =
-			START_SERIAL2XSBUG = export XSBUG_PORT=$(XSBUG_PORT) && export XSBUG_HOST=$(XSBUG_HOST) && cd $(MODDABLE)/tools/xsbug-log && node xsbug-log $(LOG_LAUNCH)$(BUILD_DIR)/bin/lin/debug/serial2xsbug $(UPLOAD_PORT) $(DEBUGGER_SPEED) 8N1
+		ifeq ("$(XSBUG_LAUNCH)","log")
+			CONNECT_XSBUG = export XSBUG_PORT=$(XSBUG_PORT) && export XSBUG_HOST=$(XSBUG_HOST) && cd $(MODDABLE)/tools/xsbug-log && node xsbug-log $(LOG_LAUNCH) serial2xsbug $(UPLOAD_PORT) $(DEBUGGER_SPEED) 8N1
 		else
-			START_XSBUG = $(shell nohup $(BUILD_DIR)/bin/lin/release/xsbug > /dev/null 2>&1 &)
-			START_SERIAL2XSBUG = export XSBUG_PORT=$(XSBUG_PORT) && export XSBUG_HOST=$(XSBUG_HOST) && $(BUILD_DIR)/bin/lin/debug/serial2xsbug $(UPLOAD_PORT) $(DEBUGGER_SPEED) 8N1
+			CONNECT_XSBUG = export XSBUG_PORT=$(XSBUG_PORT) && export XSBUG_HOST=$(XSBUG_HOST) && serial2xsbug $(UPLOAD_PORT) $(DEBUGGER_SPEED) 8N1
+			ifeq ("$(XSBUG_LAUNCH)","app")
+				START_XSBUG = $(shell nohup $(BUILD_DIR)/bin/lin/release/xsbug > /dev/null 2>&1 &)
+			endif
 		endif
 	endif
 else
@@ -345,7 +327,8 @@ ESPTOOL_FLASH_OPT = \
 	0x1000 $(BIN_DIR)/main.bin \
 	$(ESP_INIT_DATA_DEFAULT_BIN_OFFSET) $(ESP_DATA_DEFAULT_BIN)
 
-UPLOAD_TO_ESP = $(ESPTOOL) -b $(UPLOAD_SPEED) -p $(UPLOAD_PORT) write_flash $(ESPTOOL_FLASH_OPT)
+SET_PROGRAMMING_MODE =
+DO_PROGRAM = $(ESPTOOL) -b $(UPLOAD_SPEED) -p $(UPLOAD_PORT) write_flash $(ESPTOOL_FLASH_OPT)
 
 .PHONY: all
 
@@ -356,24 +339,26 @@ build: $(LIB_DIR) $(BIN_DIR)/main.bin
 deploy:
 	@echo "# uploading to esp"
 	$(KILL_SERIAL2XSBUG)
-	$(UPLOAD_TO_ESP)
-
+	$(SET_PROGRAMMING_MODE)
+	$(DO_PROGRAM)
 
 xsbug:
 	@echo "# starting xsbug"
 	$(KILL_SERIAL2XSBUG)
 	$(START_XSBUG)
-	$(START_SERIAL2XSBUG)
+	$(CONNECT_XSBUG)
 
 debug: build
 	$(KILL_SERIAL2XSBUG)
 	$(START_XSBUG)
-	$(UPLOAD_TO_ESP)
-	$(START_SERIAL2XSBUG)
+	$(SET_PROGRAMMING_MODE)
+	$(DO_PROGRAM)
+	$(CONNECT_XSBUG)
 
 release: $(LIB_DIR) $(BIN_DIR)/main.bin
 	$(KILL_SERIAL2XSBUG)
-	$(UPLOAD_TO_ESP)
+	$(SET_PROGRAMMING_MODE)
+	$(DO_PROGRAM)
 
 clean:
 	echo "# Clean project"
@@ -438,11 +423,11 @@ $(TMP_DIR)/mc.%.c.o: $(TMP_DIR)/mc.%.c
 
 $(TMP_DIR)/mc.xs.c: $(MODULES) $(MANIFEST)
 	@echo "# xsl modules"
-	$(XSL) -b $(MODULES_DIR) -o $(TMP_DIR) $(PRELOADS) $(STRIPS) $(CREATION) $(MODULES)
+	xsl -b $(MODULES_DIR) -o $(TMP_DIR) $(PRELOADS) $(STRIPS) $(CREATION) $(MODULES)
 
 $(TMP_DIR)/mc.resources.c: $(DATA) $(RESOURCES) $(MANIFEST)
 	@echo "# mcrez resources"
-	$(MCREZ) $(DATA) $(RESOURCES) -o $(TMP_DIR) -p esp -r mc.resources.c
+	mcrez $(DATA) $(RESOURCES) -o $(TMP_DIR) -p esp -r mc.resources.c
 
 MAKEFLAGS += --jobs
 ifneq ($(VERBOSE),1)

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2023  Moddable Tech, Inc.
+ * Copyright (c) 2021-2025  Moddable Tech, Inc.
  *
  *   This file is part of the Moddable SDK.
  * 
@@ -44,10 +44,9 @@ class TLSSocket {
 		}; 
 
 		this.#session = new Session({
-			tls_server_name: options.host,
+			serverName: options.host,		// serverName for SNI. This defaults it to host. Caller can override with options.secure.serverName
 			...options.secure,
 			protocolVersion: 0x303,
-			trace: false
 		});
 		this.#session.initiateHandshake();
 
@@ -107,7 +106,7 @@ class TLSSocket {
 		}
 
 		if (!this.#data && this.#socket.readable) {
-			this.#doRead = Timer.set(() => {
+			this.#doRead ??= Timer.set(() => {
 				this.#doRead = undefined;
 				if (this.#socket.readable)
 					this.#onReadable(this.#socket.readable);
@@ -116,12 +115,15 @@ class TLSSocket {
 
 		return result;
 	}
-	write(buffer) {
-		this.#session.write(this.#socket, buffer);
-		return Math.max(0, this.#socket.writable - 96);		// not quite standard... like network protocols needed by client
+	write(buffer, options) {
+		if (buffer instanceof DataView)
+			buffer = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+		return this.#session.write(this.#socket, buffer, options);
 	}
 	set format(format) {
-		this.#format = format === "buffer";
+		if (("buffer" != format) && ("number" != format))
+			throw new RangeError;
+		this.#format = format == "buffer";
 	}
 	get format() {
 		return this.#format ? "buffer" : "number";

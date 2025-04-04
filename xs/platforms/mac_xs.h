@@ -55,6 +55,7 @@
 #include <pthread.h>
 #include <CoreServices/CoreServices.h>
 
+#define mxUseFloat16 1
 #define mxUseGCCAtomics 1
 #define mxUsePOSIXThreads 1
 
@@ -81,9 +82,6 @@ extern void fxQueueWorkerJob(void* machine, void* job);
 	CFRunLoopSourceRef connectionSource; \
 	void* host; \
 	CFRunLoopSourceRef promiseSource; \
-	void* waiterCondition; \
-	void* waiterData; \
-	void* waiterLink; \
 	pthread_mutex_t workerMutex; \
 	CFRunLoopRef workerLoop; \
 	txWorkerJob* workerQueue; \

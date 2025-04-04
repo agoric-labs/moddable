@@ -4,13 +4,7 @@ flags: [module, async]
 ---*/
 
 import Worker from "worker";
-
-const minimumOptions = {
-	allocation: 8192,
-	stackCount: 64,
-	slotCount: 64,
-	keyCount: 7
-};
+import minimumOptions from "./minimumOptions_FIXTURE.js"
 
 const messages = [
 	1,
@@ -21,14 +15,17 @@ const messages = [
 	{one: 1},
 	new Date(1),
 	Uint8Array.of(1).buffer,
-	Uint32Array.of(1)
+	Uint32Array.of(1),
+	new Map([[1, "one"]]),
+	new Set([1, "two", 3n]),
+	1_000_000_000_000_000_000_000_000_000_000_000n
 ];
 
 const worker = new Worker("testworker", minimumOptions);
 
 assert.throws(SyntaxError, () => worker.postMessage(), "postMessage requires 1 argument");
 assert.throws(SyntaxError, () => worker.postMessage.call(new $TESTMC.HostObject, 0, 64), "postMessage with non-worker this");
-assert.throws(TypeError, () => worker.postMessage({host: new $TESTMC.HostObject}), "postMessage rejects host objects");
+assert.throws(Error, () => worker.postMessage({host: new $TESTMC.HostObject}), "postMessage rejects host objects");
 
 let index = 0;
 worker.postMessage(messages[index]);
@@ -60,6 +57,22 @@ worker.onmessage = function(reply) {
 				assert(actual instanceof Uint32Array, "expected Uint32Array instance");
 				assert.sameValue(actual.length, 1, "expected Uint32Array.length 1");
 				assert.sameValue(actual[0], 1, "expected buffer[0] to be 1");
+			}
+			else if (9 === index) {
+				assert(actual instanceof Map, "expected Map instance");
+				assert.sameValue(actual.size, 1, "expected Map.size 1");
+				assert.sameValue(actual.get(1), "one", "expected get(1) to be 'one'");
+			}
+			else if (10 === index) {
+				assert(actual instanceof Set, "expected Set instance");
+				assert.sameValue(actual.size, 3, "expected Set.size 1");
+				assert.sameValue(actual.has(1), true, "expected has(1) to be true");
+				assert.sameValue(actual.has("two"), true, "expected has('two') to be true");
+				assert.sameValue(actual.has(3n), true, "expected has(3n) to be true");
+			}
+			else if (11 === index) {
+				assert.sameValue(typeof actual, "bigint", "expected bigint");
+				assert.sameValue(actual, messages[11], "expected correct BigInt value");
 			}
 			else
 				throw new Error("unexpected");

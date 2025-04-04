@@ -52,6 +52,7 @@
 
 static txBoolean fxFindScript(txMachine* the, txString path, txID* id);
 static void fxFreezeBuiltIns(txMachine* the);
+static void fxFreezeJSONModule(txMachine* the);
 static txScript* fxLoadScript(txMachine* the, txString path);
 
 int main(int argc, char* argv[]) 
@@ -294,7 +295,7 @@ int main(int argc, char* argv[])
 
 		linker->symbolTable = fxNewLinkerChunkClear(linker, linker->symbolModulo * sizeof(txLinkerSymbol*));
 		if (archiving) {
-			fxNewLinkerSymbol(linker, gxIDStrings[0], 0);
+			fxNewLinkerSymbol(linker, gxIDStrings[0], 0, 0);
 			resource = linker->firstResource;
 			while (resource) {
 				fxBaseResource(linker, resource, base, size);
@@ -364,9 +365,22 @@ int main(int argc, char* argv[])
 // 						}
 						preload = linker->firstPreload;
 						while (preload) {
-							fxSlashPath(preload->name, mxSeparator, url[0]);
-							xsResult = xsAwaitImport(preload->name, XS_IMPORT_NAMESPACE);
-							xsCollectGarbage();
+							if (c_strncmp(preload->name, "lockdown/", 9)) {
+								fxSlashPath(preload->name, mxSeparator, url[0]);
+								xsResult = xsAwaitImport(preload->name, XS_IMPORT_NAMESPACE);
+								fxFreezeJSONModule(the);
+								xsCollectGarbage();
+							}
+							preload = preload->nextPreload;
+						}
+						preload = linker->firstPreload;
+						while (preload) {
+							if (!c_strncmp(preload->name, "lockdown/", 9)) {
+								fxSlashPath(preload->name, mxSeparator, url[0]);
+								xsResult = xsAwaitImport(preload->name, XS_IMPORT_NAMESPACE);
+								fxFreezeJSONModule(the);
+								xsCollectGarbage();
+							}
 							preload = preload->nextPreload;
 						}
 						while (linker->promiseJobsFlag) {
@@ -388,24 +402,32 @@ int main(int argc, char* argv[])
 			xsBeginHost(the);
 			{
 				{
+					txSlot* constructor;
 					txCallback callback;
 					txSlot* property;
 					txID id;
+					
+					fxDuplicateInstance(the, mxThrowTypeErrorFunction.value.reference);
+					constructor = the->stack;
+					constructor->value.reference->flag |= XS_CAN_CONSTRUCT_FLAG;
+					mxFunctionInstanceCode(constructor->value.reference)->ID = XS_NO_ID; 
+					mxFunctionInstanceHome(constructor->value.reference)->value.home.object = NULL;
+
 					property = mxBehaviorGetProperty(the, mxAsyncFunctionPrototype.value.reference, mxID(_constructor), 0, XS_OWN);
-					property->kind = mxThrowTypeErrorFunction.kind;
-					property->value = mxThrowTypeErrorFunction.value;
+					property->kind = constructor->kind;
+					property->value = constructor->value;
 					property = mxBehaviorGetProperty(the, mxAsyncGeneratorFunctionPrototype.value.reference, mxID(_constructor), 0, XS_OWN);
-					property->kind = mxThrowTypeErrorFunction.kind;
-					property->value = mxThrowTypeErrorFunction.value;
+					property->kind = constructor->kind;
+					property->value = constructor->value;
 					property = mxBehaviorGetProperty(the, mxFunctionPrototype.value.reference, mxID(_constructor), 0, XS_OWN);
-					property->kind = mxThrowTypeErrorFunction.kind;
-					property->value = mxThrowTypeErrorFunction.value;
+					property->kind = constructor->kind;
+					property->value = constructor->value;
 					property = mxBehaviorGetProperty(the, mxGeneratorFunctionPrototype.value.reference, mxID(_constructor), 0, XS_OWN);
-					property->kind = mxThrowTypeErrorFunction.kind;
-					property->value = mxThrowTypeErrorFunction.value;
+					property->kind = constructor->kind;
+					property->value = constructor->value;
 					property = mxBehaviorGetProperty(the, mxCompartmentPrototype.value.reference, mxID(_constructor), 0, XS_OWN);
-					property->kind = mxThrowTypeErrorFunction.kind;
-					property->value = mxThrowTypeErrorFunction.value;
+					property->kind = constructor->kind;
+					property->value = constructor->value;
 
 					fxDuplicateInstance(the, mxDateConstructor.value.reference);
 					callback = mxCallback(fx_Date_secure);
@@ -426,13 +448,15 @@ int main(int argc, char* argv[])
 					fxDuplicateInstance(the, mxMathObject.value.reference);
 					property = mxBehaviorGetProperty(the, the->stack->value.reference, mxID(_random), 0, XS_OWN);
 					fxSetHostFunctionProperty(the, property, mxCallback(fx_Math_random_secure), 0, mxID(_random));
+					property = mxBehaviorGetProperty(the, the->stack->value.reference, mxID(_irandom), 0, XS_OWN);
+					fxSetHostFunctionProperty(the, property, mxCallback(fx_Math_irandom_secure), 0, mxID(_irandom));
 					mxPull(mxMathObject);
 					
 					property = fxLastProperty(the, fxNewInstance(the));
 					for (id = XS_SYMBOL_ID_COUNT; id < _Infinity; id++)
-						property = fxNextSlotProperty(the, property, &the->stackPrototypes[-1 - id], mxID(id), XS_DONT_ENUM_FLAG);
+						property = fxNextSlotProperty(the, property, &the->stackIntrinsics[-1 - id], mxID(id), XS_DONT_ENUM_FLAG);
 					for (; id < _Compartment; id++)
-						property = fxNextSlotProperty(the, property, &the->stackPrototypes[-1 - id], mxID(id), XS_GET_ONLY);
+						property = fxNextSlotProperty(the, property, &the->stackIntrinsics[-1 - id], mxID(id), XS_GET_ONLY);
 					mxPull(mxCompartmentGlobal);
 					
 					mxGlobal.value.reference->value.instance.prototype = C_NULL;
@@ -441,6 +465,8 @@ int main(int argc, char* argv[])
 					mxPop();
 					mxPush(mxGlobal);
 					mxDeleteID(mxID(_globalThis));
+					mxPop();
+					
 					mxPop();
 				}
 				{
@@ -782,6 +808,8 @@ txID fxFindModule(txMachine* the, txSlot* realm, txID moduleID, txSlot* slot)
 	char buffer[C_PATH_MAX];
 	char separator;
 	txInteger dot = 0;
+	txInteger i = 0;
+	txInteger hash = 0;
 	txString slash;
 	txString path;
 	txID id;
@@ -790,11 +818,23 @@ txID fxFindModule(txMachine* the, txSlot* realm, txID moduleID, txSlot* slot)
 	if (name[0] == '.') {
 		if (name[1] == '/') {
 			dot = 1;
+			i = 1;
 		}
 		else if ((name[1] == '.') && (name[2] == '/')) {
 			dot = 2;
+			i = 2;
+			while ((name[i + 1] == '.') && (name[i + 2] == '.') && (name[i + 3] == '/')) {
+				dot++;
+				i += 3;
+			}
 		}
 	}
+	else if (name[0] == '#') {
+		hash = 1;
+	}
+	else if (c_strncmp(name, "moddable:", 9) == 0)
+		c_memmove(name, name + 9, c_strlen(name) - 8);
+	
 	separator = linker->base[0];
 	fxSlashPath(name, '/', separator);
 	slash = c_strrchr(name, separator);
@@ -803,7 +843,8 @@ txID fxFindModule(txMachine* the, txSlot* realm, txID moduleID, txSlot* slot)
 	slash = c_strrchr(slash, '.');
 	if (slash && (!c_strcmp(slash, ".js") || !c_strcmp(slash, ".mjs") || !c_strcmp(slash, ".xsb")))
 		*slash = 0;
-	if (dot) {
+		
+	if (dot > 0) {
 		if (moduleID == XS_NO_ID)
 			return XS_NO_ID;
 		buffer[0] = separator;
@@ -812,19 +853,40 @@ txID fxFindModule(txMachine* the, txSlot* realm, txID moduleID, txSlot* slot)
 		slash = c_strrchr(buffer, separator);
 		if (!slash)
 			return XS_NO_ID;
-		if (dot == 2) {
-			*slash = 0;
+		*slash = 0;
+		dot--;
+		while (dot > 0) {
 			slash = c_strrchr(buffer, separator);
 			if (!slash)
 				return XS_NO_ID;
+			*slash = 0;
+			dot--;
 		}
-		*slash = 0;
-		if ((c_strlen(buffer) + c_strlen(name + dot)) >= sizeof(buffer))
+		if ((c_strlen(buffer) + c_strlen(name + i)) >= sizeof(buffer))
 			mxRangeError("path too long");
-		c_strcat(buffer, name + dot);
+		c_strcat(buffer, name + i);
+	}
+	else if (hash) {
+		if (moduleID == XS_NO_ID)
+			return XS_NO_ID;
+		path = buffer;
+		c_strcpy(path, fxGetKeyName(the, moduleID));
+		slash = c_strchr(buffer, separator);
+		if (!slash)
+			return XS_NO_ID;
+		if (path[0] == '@') {
+			slash = c_strchr(slash + 1, mxSeparator);
+			if (!slash)
+				return XS_NO_ID;
+		}
+		*(slash + 1) = 0;
+		if ((c_strlen(buffer) + c_strlen(name)) >= sizeof(buffer))
+			mxRangeError("path too long");
+		c_strcat(buffer, name);
 	}
 	else
 		path = name;
+		
 	if (fxFindScript(the, path, &id))
 		return id;
 	return XS_NO_ID;
@@ -909,7 +971,6 @@ void fxFreezeBuiltIns(txMachine* the)
 	mxFreezeBuiltInCall; mxPush(mxSharedArrayBufferPrototype); mxFreezeBuiltInRun;
 	mxFreezeBuiltInCall; mxPush(mxStringIteratorPrototype); mxFreezeBuiltInRun;
 	mxFreezeBuiltInCall; mxPush(mxStringPrototype); mxFreezeBuiltInRun;
-	mxFreezeBuiltInCall; mxPush(mxSuppressedErrorPrototype); mxFreezeBuiltInRun;
 	mxFreezeBuiltInCall; mxPush(mxSymbolPrototype); mxFreezeBuiltInRun;
 	mxFreezeBuiltInCall; mxPush(mxSyntaxErrorPrototype); mxFreezeBuiltInRun;
 	mxFreezeBuiltInCall; mxPush(mxTransferPrototype); mxFreezeBuiltInRun;
@@ -919,10 +980,14 @@ void fxFreezeBuiltIns(txMachine* the)
 	mxFreezeBuiltInCall; mxPush(mxWeakMapPrototype); mxFreezeBuiltInRun;
 	mxFreezeBuiltInCall; mxPush(mxWeakRefPrototype); mxFreezeBuiltInRun;
 	mxFreezeBuiltInCall; mxPush(mxWeakSetPrototype); mxFreezeBuiltInRun;
-	
+#if mxExplicitResourceManagement
+	mxFreezeBuiltInCall; mxPush(mxSuppressedErrorPrototype); mxFreezeBuiltInRun;
+	mxFreezeBuiltInCall; mxPush(mxDisposableStackPrototype); mxFreezeBuiltInRun;
+	mxFreezeBuiltInCall; mxPush(mxAsyncDisposableStackPrototype); mxFreezeBuiltInRun;
+#endif	
 	for (index = 0, dispatch = &gxTypeDispatches[0]; index < mxTypeArrayCount; index++, dispatch++) {
 		mxFreezeBuiltInCall; 
-		mxPush(the->stackPrototypes[-1 - (txInteger)dispatch->constructorID]);
+		mxPush(the->stackIntrinsics[-1 - (txInteger)dispatch->constructorID]);
 		mxGetID(mxID(_prototype));
 		mxFreezeBuiltInRun;
 	}
@@ -934,6 +999,27 @@ void fxFreezeBuiltIns(txMachine* the)
 	mxFreezeBuiltInCall; mxPush(mxHosts); mxFreezeBuiltInRun; //@@
 	
 	mxPop();
+}
+
+void fxFreezeJSONModule(txMachine* the)
+{
+	txSlot* instance = fxGetInstance(the, mxResult);
+	txSlot* internal = instance->next;
+	if (internal && (internal->kind == XS_MODULE_KIND) && (internal->flag & XS_JSON_MODULE_FLAG)) {
+		txID defaultID = mxID(_default);
+		txSlot* export = mxModuleInstanceExports(instance)->value.reference->next;
+		if (export && (export->ID == defaultID)) {
+			mxPush(mxObjectConstructor);
+			mxDub();
+			mxGetID(mxID(_freeze));
+			mxCall();
+			mxPushSlot(export->value.export.closure);
+			mxPushBoolean(1);
+			mxRunCount(2);
+			mxPop();
+		}
+	
+	}
 }
 
 void fxLoadModule(txMachine* the, txSlot* module, txID moduleID)

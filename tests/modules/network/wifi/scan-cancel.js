@@ -6,8 +6,8 @@ flags: [async, module]
 import WiFi from "wifi";
 import Timer from "timer";
 
-if (1 !== WiFi.mode) {
-	WiFi.mode = 1;
+if (WiFi.Mode.station !== WiFi.mode) {
+	WiFi.mode = WiFi.Mode.station;
 	Timer.delay(3000);
 }
 
@@ -16,11 +16,9 @@ WiFi.scan({}, ap => {
 });
 WiFi.scan();
 
-let once = false;;
 WiFi.scan({}, ap => {
-	if (once) return;
-	once = true;
-	$DONE();
+	if (!ap)
+		$DONE();
 });
 
 $TESTMC.timeout($TESTMC.wifiScanTimeout);

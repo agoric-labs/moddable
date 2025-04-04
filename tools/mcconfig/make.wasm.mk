@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2016-2021  Moddable Tech, Inc.
+# Copyright (c) 2016-2023  Moddable Tech, Inc.
 #
 #   This file is part of the Moddable SDK Tools.
 # 
@@ -20,7 +20,6 @@
 HOST_OS := $(shell uname)
 
 CC = emcc
-OPT = wasm-opt
 
 XS_DIRECTORIES = \
 	$(XS_DIR)/includes \
@@ -87,13 +86,8 @@ C_DEFINES = \
 	-DXS_ARCHIVE=1 \
 	-DINCLUDE_XSPLATFORM=1 \
 	-DXSPLATFORM=\"wasm_xs.h\" \
-	-DmxRun=1 \
-	-DmxNoFunctionLength=1 \
-	-DmxNoFunctionName=1 \
-	-DmxHostFunctionPrimitive=1 \
-	-DmxFewGlobalsTable=1 \
-	-DkCommodettoBitmapFormat=$(DISPLAY) \
-	-DkPocoRotation=$(ROTATION)
+	-DkCommodettoBitmapFormat=$(COMMODETTOBITMAPFORMAT) \
+	-DkPocoRotation=$(POCOROTATION)
 
 C_INCLUDES += $(DIRECTORIES)
 C_INCLUDES += $(foreach dir,$(XS_DIRECTORIES) $(TMP_DIR),-I$(dir))
@@ -120,24 +114,6 @@ LINK_OPTIONS = \
 
 LINK_LIBRARIES = -ldl -lm
 
-ifeq ($(HOST_OS),Darwin)
-MODDABLE_TOOLS_DIR = $(BUILD_DIR)/bin/mac
-else
-MODDABLE_TOOLS_DIR = $(BUILD_DIR)/bin/lin
-endif
-
-BUILDCLUT = $(MODDABLE_TOOLS_DIR)/release/buildclut
-COMPRESSBMF = $(MODDABLE_TOOLS_DIR)/release/compressbmf
-IMAGE2CS = $(MODDABLE_TOOLS_DIR)/release/image2cs
-MCLOCAL = $(MODDABLE_TOOLS_DIR)/debug/mclocal
-MCREZ = $(MODDABLE_TOOLS_DIR)/release/mcrez
-PNG2BMP = $(MODDABLE_TOOLS_DIR)/debug/png2bmp
-RLE4ENCODE = $(MODDABLE_TOOLS_DIR)/release/rle4encode
-WAV2MAUD = $(MODDABLE_TOOLS_DIR)/release/wav2maud
-XSC = $(MODDABLE_TOOLS_DIR)/release/xsc
-XSID = $(MODDABLE_TOOLS_DIR)/release/xsid
-XSL = $(MODDABLE_TOOLS_DIR)/release/xsl
-
 VPATH += $(XS_DIRECTORIES)
 
 .PHONY: all	
@@ -154,9 +130,7 @@ $(BIN_DIR)/index.html: 	$(BUILD_DIR)/makefiles/wasm/index.html
 	
 $(BIN_DIR)/mc.js: $(XS_OBJECTS) $(TMP_DIR)/mc.xs.c.o $(TMP_DIR)/mc.resources.c.o $(OBJECTS) $(TMP_DIR)/mc.main.c.o
 	@echo "# cc mc.js"
-	$(CC) $(LINK_OPTIONS) $(LINK_LIBRARIES) $^ -o $@
-	@echo "# wasm-opt"
-	$(OPT) -O2 $(BIN_DIR)/mc.wasm -o $(BIN_DIR)/mc.wasm
+	$(CC) -O3 $(LINK_OPTIONS) $(LINK_LIBRARIES) $^ -o $@
 
 $(XS_OBJECTS) : $(XS_HEADERS)
 $(LIB_DIR)/%.c.o: %.c
@@ -169,7 +143,7 @@ $(TMP_DIR)/mc.xs.c.o: $(TMP_DIR)/mc.xs.c $(HEADERS)
 	
 $(TMP_DIR)/mc.xs.c: $(MODULES) $(MANIFEST)
 	@echo "# xsl modules"
-	$(XSL) -b $(MODULES_DIR) -o $(TMP_DIR) $(PRELOADS) $(STRIPS) $(CREATION) $(MODULES)
+	xsl -b $(MODULES_DIR) -o $(TMP_DIR) $(PRELOADS) $(STRIPS) $(CREATION) $(MODULES)
 
 $(TMP_DIR)/mc.resources.c.o: $(TMP_DIR)/mc.resources.c $(HEADERS)
 	@echo "# cc" $(<F)
@@ -177,7 +151,7 @@ $(TMP_DIR)/mc.resources.c.o: $(TMP_DIR)/mc.resources.c $(HEADERS)
 
 $(TMP_DIR)/mc.resources.c: $(DATA) $(RESOURCES) $(MANIFEST)
 	@echo "# mcrez resources"
-	$(MCREZ) $(DATA) $(RESOURCES) -o $(TMP_DIR) -r mc.resources.c
+	mcrez $(DATA) $(RESOURCES) -o $(TMP_DIR) -r mc.resources.c
 	
 $(TMP_DIR)/mc.main.c.o: $(BUILD_DIR)/makefiles/wasm/main.c $(HEADERS)
 	@echo "# cc" $(<F)

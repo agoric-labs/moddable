@@ -470,6 +470,20 @@ txBoolean fxDefinePrivateProperty(txMachine* the, txSlot* instance, txSlot* chec
 	txSlot** address;
 	txSlot* property;
 	mxCheck(the, instance->kind == XS_INSTANCE_KIND);
+#if mxAliasInstance
+	if (instance->ID) {
+		txSlot* alias = the->aliasArray[instance->ID];
+		if (alias)
+			instance = alias;
+		else
+			instance = fxAliasInstance(the, instance);
+	}
+	if (instance->flag & XS_MARK_FLAG)
+		return 0;
+#else
+	if (instance->flag & XS_DONT_MARSHALL_FLAG)
+		return 0;
+#endif
 	address = &(instance->next);
 	while ((property = *address)) {
 		if (!(property->flag & XS_INTERNAL_FLAG)) {
@@ -632,6 +646,49 @@ txSlot* fxSetPrivateProperty(txMachine* the, txSlot* instance, txSlot* check, tx
 	return result;
 }
 
+void fxGroupBy(txMachine* the, txCallback aux) 
+{
+	txSlot *function, *iterable, *iterator, *next, *value, *slot;
+	txNumber k = 0;
+	if ((mxArgc < 1) || mxIsUndefined(mxArgv(0)) || mxIsUndefined(mxArgv(1)))
+		mxTypeError("items: not an object");
+	if ((mxArgc < 2) || (!fxIsCallable(the, mxArgv(1))))
+		mxTypeError("callback: not a function");
+	function = mxArgv(1);
+	iterable = mxArgv(0);
+	mxTemporary(iterator);
+	mxTemporary(next);
+	fxGetIterator(the, iterable, iterator, next, 0);
+	mxTemporary(value);
+	while (fxIteratorNext(the, iterator, next, value)) {
+		mxTry(the) {
+			if (k > C_MAX_SAFE_INTEGER)
+				mxTypeError("unsafe integer");
+			mxPushUndefined();
+			mxPushSlot(function);
+			mxCall();
+			mxPushSlot(value);
+			mxPushNumber(k);
+			mxRunCount(2);
+			aux(the);
+			slot = the->stack->value.reference->next;
+			slot->value.array.length++;
+			while (slot->next)
+				slot = slot->next;
+			slot->next = fxDuplicateSlot(the, value);
+			mxPop();
+			mxPop();
+			k++;
+		}
+		mxCatch(the) {
+			fxIteratorReturn(the, iterator, 1);
+			fxJump(the);
+		}
+	}
+	mxPop();
+	mxPop();
+	mxPop();
+}
 
 
 

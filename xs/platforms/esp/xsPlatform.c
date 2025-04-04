@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2021  Moddable Tech, Inc.
+ * Copyright (c) 2016-2023  Moddable Tech, Inc.
  *
  *   This file is part of the Moddable SDK Runtime.
  * 
@@ -43,12 +43,15 @@
 #include "mc.defines.h"
 
 #if ESP32
-#if ESP32 != 3
+#if ESP32 < 2
 	#include "esp32/rom/ets_sys.h"
 #endif
 	#include "nvs_flash/include/nvs_flash.h"
 	#include "esp_partition.h"
 	#include "esp_wifi.h"
+	#if MODDEF_XS_MODS
+		#include "spi_flash/include/spi_flash_mmap.h"
+	#endif
 #else
 	#include "tinyprintf.h"
 	#include "spi_flash.h"
@@ -217,46 +220,72 @@ const char *gXSAbortStrings[] ICACHE_FLASH_ATTR = {
 
 void fxAbort(txMachine* the, int status)
 {
-#if MODDEF_XS_TEST
+#if MODDEF_XS_TEST && MODDEF_SOFTRESET
 	if (XS_DEBUGGER_EXIT == status) {
-		extern txMachine *gThe;
-		if (gThe == the) {
-			gThe = NULL;		// soft reset
-			return;
-		}
+		modSoftReset();
+		return;
 	}
 #endif
 
-#if defined(mxDebug) || defined(mxInstrument)
+#ifdef mxDebug
+	if ((XS_DEAD_STRIP_EXIT == status) && the->debugEval)
+		mxUnknownError("dead strip");
+#endif
+
+#if defined(mxDebug) || defined(mxInstrument) || defined(MODDEF_XS_ABORTHOOK)
 	const char *msg = (status <= XS_UNHANDLED_REJECTION_EXIT) ? gXSAbortStrings[status] : "unknown";
 
+	#ifdef MODDEF_XS_RESTARTON
+		#error RestartOn deprecated. Use abortHook instead.
+	#endif
+
+	#if MODDEF_XS_ABORTHOOK
+		if ((XS_STACK_OVERFLOW_EXIT != status) && (XS_DEBUGGER_EXIT != status)) {
+			xsBooleanValue ignore = false;
+			
+			fxBeginHost(the);
+			{
+				mxPush(mxException);
+				txSlot *exception = the->stack;
+				mxException = xsUndefined;
+				mxTry(the) {
+					txID abortID = fxFindName(the, "abort");
+					mxOverflow(-8);
+					mxPush(mxGlobal);
+					if (fxHasID(the, abortID)) {
+						mxPush(mxGlobal);
+						fxCallID(the, abortID);
+						mxPushStringC((char *)msg);
+						mxPushSlot(exception);
+						fxRunCount(the, 2);
+						ignore = (XS_BOOLEAN_KIND == the->stack->kind) && !the->stack->value.boolean;
+						mxPop();
+					}
+				}
+				mxCatch(the) {
+				}
+			}
+			fxEndHost(the);
+			if (ignore)
+				return;
+		}
+	#endif
+
 	fxReport(the, "XS abort: %s\n", msg);
-	#if defined(mxDebug) && !MODDEF_XS_TEST
-		if ((char *)&the <= the->stackLimit)
-			the->stackLimit = NULL;
-		fxDebugger(the, (char *)__FILE__, __LINE__);
+	#if !defined(MODDEF_XS_DEBUGABORT) || MODDEF_XS_DEBUGABORT
+		#if defined(mxDebug) && !MODDEF_XS_TEST
+			if ((char *)&the <= the->stackLimit)
+				the->stackLimit = NULL;
+			fxDebugger(the, (char *)__FILE__, __LINE__);
+		#endif
 	#endif
 #endif
 
-#ifdef MODDEF_XS_RESTARTON
-	static const int restart[] = {
-		#if defined(mxDebug)
-			XS_DEBUGGER_EXIT,
-			XS_FATAL_CHECK_EXIT,
-		#endif
-			MODDEF_XS_RESTARTON };
-	int i;
-	for (i = 0; i < sizeof(restart) / sizeof(int); i++) {
-		if (restart[i] == status)
-			c_exit(status);
-	}
+#if MODDEF_XS_ABORT_EXITTOHOST
+	the->exitStatus = status;
+	fxExitToHost(the);
 #else
-	#if ESP32
-		c_exit(status);
-	#else
-		system_restart();
-		esp_yield();
-	#endif
+	c_exit(status);
 #endif
 }
 

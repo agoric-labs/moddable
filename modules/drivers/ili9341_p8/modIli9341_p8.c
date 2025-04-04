@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2023  Moddable Tech, Inc.
+ * Copyright (c) 2016-2024  Moddable Tech, Inc.
  *
  *   This file is part of the Moddable SDK Runtime.
  * 
@@ -18,11 +18,6 @@
  *
  */
  
-/*
-	to do:
-		update tearing effect support 
-*/
-
 #include "xsmc.h"
 #include "xsHost.h"
 
@@ -44,7 +39,7 @@
 
 #include "driver/gpio.h"
 
-#if !defined(MODDEF_ILI9341P8_DC_PIN) || !defined(MODDEF_ILI9341P8_CS_PIN) || !defined(MODDEF_ILI9341P8_PCLK_PIN)
+#if !defined(MODDEF_ILI9341P8_DC_PIN) || !defined(MODDEF_ILI9341P8_PCLK_PIN)
 	#error required pin not defined
 #endif
 #if !defined(MODDEF_ILI9341P8_DATA0_PIN) || !defined(MODDEF_ILI9341P8_DATA1_PIN) || !defined(MODDEF_ILI9341P8_DATA2_PIN) || !defined(MODDEF_ILI9341P8_DATA3_PIN) || !defined(MODDEF_ILI9341P8_DATA4_PIN) || !defined(MODDEF_ILI9341P8_DATA5_PIN) || !defined(MODDEF_ILI9341P8_DATA6_PIN) || !defined(MODDEF_ILI9341P8_DATA7_PIN)
@@ -97,9 +92,7 @@ typedef struct {
 	modGPIOConfigurationRecord	readEn;
 #endif
 #ifdef MODDEF_ILI9341P8_TEARINGEFFECT_PIN
-	modGPIOConfigurationRecord	tearingEffect;
-	uint32_t					te_byteLength;
-	volatile void				*te_pixels;
+	SemaphoreHandle_t			startSend;
 #endif
 
 	int updateWidth;
@@ -107,10 +100,15 @@ typedef struct {
 	int yMin;
 	int yMax;
 	int ping;
+	uint8_t nothingSent;
 
 	uint8_t						firstFrame;
+#ifdef MODDEF_ILI9341P8_TEARINGEFFECT_PIN
 	uint8_t						firstBuffer;
 	uint8_t						isContinue;
+	uint8_t						waiting;
+	uint8_t						syncFrames;
+#endif
 	uint8_t						memoryAccessControl;	// register 36h initialization value
 
 	SemaphoreHandle_t			colorsInFlight;
@@ -155,6 +153,13 @@ void xs_ILI9341p8_destructor(void *data)
 	spiDisplay sd = data;
 	if (!data) return;
 
+#ifdef MODDEF_ILI9341P8_TEARINGEFFECT_PIN
+	if (sd->startSend)
+		vSemaphoreDelete(sd->startSend);
+
+	gpio_isr_handler_remove(MODDEF_ILI9341P8_TEARINGEFFECT_PIN);
+#endif
+
 	if (sd->io_handle)
 		esp_lcd_panel_io_del(sd->io_handle);
 
@@ -180,9 +185,10 @@ static bool colorDone(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_io_event
 	BaseType_t high_task_woken = pdFALSE, doYield = pdFALSE;
 	int op;
 
-	xQueueReceiveFromISR(sd->ops, &op, &high_task_woken);
-	if (op)
-		xSemaphoreGiveFromISR(sd->colorsInFlight, &doYield);
+	if (pdTRUE == xQueueReceiveFromISR(sd->ops, &op, &high_task_woken)) {		// assert - should never be pdFALSE
+		if (op)
+			xSemaphoreGiveFromISR(sd->colorsInFlight, &doYield);
+	}
 
 	return doYield || high_task_woken;
 }
@@ -219,15 +225,22 @@ void xs_ILI9341p8(xsMachine *the)
             MODDEF_ILI9341P8_DATA7_PIN,
         },
         .bus_width = 8,
-        .max_transfer_bytes = 65536
+        .max_transfer_bytes = 65536,
+        
+        .clk_src = LCD_CLK_SRC_DEFAULT,
+        .psram_trans_align = 64,
+        .sram_trans_align = 4,        
     };
 
     err = esp_lcd_new_i80_bus(&bus_config, &sd->i80_bus_handle);
     if (err)
     	xsUnknownError("esp_lcd_new_i80_bus failed");
-
     esp_lcd_panel_io_i80_config_t io_config = {
+#ifdef MODDEF_ILI9341P8_CS_PIN
         .cs_gpio_num = MODDEF_ILI9341P8_CS_PIN,
+#else
+        .cs_gpio_num = -1,	// "-1 will declaim exclusively use of I80 bus"
+#endif
         .pclk_hz = MODDEF_ILI9341P8_HZ,
         .trans_queue_depth = MODDEF_ILI9341P8_OPQUEUE,
         .on_color_trans_done = colorDone,
@@ -267,13 +280,15 @@ void xs_ILI9341p8(xsMachine *the)
 #endif
 
 #ifdef MODDEF_ILI9341P8_TEARINGEFFECT_PIN
-//	modGPIOInit(&sd->tearingEffect, NULL, MODDEF_ILI9341P8_TEARINGEFFECT_PIN, kModGPIOInput);
 	gpio_pad_select_gpio(MODDEF_ILI9341P8_TEARINGEFFECT_PIN);
 	gpio_set_direction(MODDEF_ILI9341P8_TEARINGEFFECT_PIN, GPIO_MODE_INPUT);
 	gpio_set_pull_mode(MODDEF_ILI9341P8_TEARINGEFFECT_PIN, GPIO_FLOATING);
 	gpio_install_isr_service(0);
-	gpio_set_intr_type(MODDEF_ILI9341P8_TEARINGEFFECT_PIN, GPIO_INTR_NEGEDGE);
+	gpio_set_intr_type(MODDEF_ILI9341P8_TEARINGEFFECT_PIN, GPIO_INTR_POSEDGE);
 	gpio_isr_handler_add(MODDEF_ILI9341P8_TEARINGEFFECT_PIN, tearingEffectISR, sd);
+
+	sd->startSend = xSemaphoreCreateBinary();
+	sd->syncFrames = 1;
 #endif
 
 	sd->ops = xQueueCreate(MODDEF_ILI9341P8_OPQUEUE, sizeof(int));
@@ -333,6 +348,12 @@ void xs_ILI9341p8_end(xsMachine *the)
 	ili9341End(sd);
 }
 
+void xs_ILI9341p8_continue(xsMachine *the)
+{
+	spiDisplay sd = xsmcGetHostData(xsThis);
+	ili9341Continue(sd);
+}
+
 void xs_ILI9341p8_pixelsToBytes(xsMachine *the)
 {
 	int count = xsmcToInteger(xsArg(0));
@@ -365,16 +386,33 @@ void xs_ILI9341p8_command(xsMachine *the)
 {
 	spiDisplay sd = xsmcGetHostData(xsThis);
 	uint8_t command = (uint8_t)xsmcToInteger(xsArg(0));
-	uint16_t dataSize = 0;
+	xsUnsignedValue dataSize = 0;
 	uint8_t *data = NULL;
 
-	if (xsmcArgc > 1) {
-		dataSize = (uint16_t)xsmcGetArrayBufferLength(xsArg(1));
-		data = xsmcToArrayBuffer(xsArg(1));
-	}
+	if (xsmcArgc > 1)
+		xsmcGetBufferReadable(xsArg(1), (void **)&data, &dataSize);
 
-	ili9341Command(sd, command, data, dataSize);
+	ili9341Command(sd, command, data, (uint16_t)dataSize);
 }
+
+void xs_ili9341p8_get_syncFrames(xsMachine *the)
+{
+#if MODDEF_ILI9341P8_TEARINGEFFECT_PIN
+	spiDisplay sd = xsmcGetHostData(xsThis);
+	xsmcSetBoolean(xsResult, sd->syncFrames);
+#else
+	xsmcSetFalse(xsResult);
+#endif
+}
+
+void xs_ili9341p8_set_syncFrames(xsMachine *the)
+{
+#if MODDEF_ILI9341P8_TEARINGEFFECT_PIN
+	spiDisplay sd = xsmcGetHostData(xsThis);
+	sd->syncFrames = xsmcToBoolean(xsArg(0));
+#endif
+}
+
 
 void xs_ILI9341p8_close(xsMachine *the)
 {
@@ -391,19 +429,15 @@ void ili9341Send(PocoPixel *pixels, int byteLength, void *refcon)
 	if (!sync)
 		byteLength = -byteLength;
 
+	sd->nothingSent = 0;
+
 #ifdef MODDEF_ILI9341P8_TEARINGEFFECT_PIN
-	if (sd->firstBuffer) {
+	if (sd->firstBuffer && sd->syncFrames) {
 		sd->firstBuffer = 0;
-//		while (0 == modGPIORead(&sd->tearingEffect))
-//			;
-
-		sd->te_byteLength = byteLength;
-		sd->te_pixels = pixels;
-
-//	esp_lcd_panel_io_tx_color(sd->io_handle, 0x2C, pixels, byteLength);
+		sd->waiting = 1;
+		xSemaphoreTake(sd->startSend, portMAX_DELAY);
 	}
-	else
- #endif
+#endif
 	{
 		int one = 1;
 		xQueueSend(sd->ops, &one, portMAX_DELAY);
@@ -465,29 +499,32 @@ void ili9341Send(PocoPixel *pixels, int byteLength, void *refcon)
 #else
 	// ST7789V
 	static const uint8_t gInit[] ICACHE_RODATA_ATTR = {
-		// Rongstar: ---- display and color format setting ----
+		// ---- display and color format setting ----
 		0x11, 0,		// Output sleep
 		kDelayMS, 200,
+		0x28, 0,		// Display OFF
+		0x26, 1, 0x04,	// Gamma Curve 4 (G1.0)
 		0x36, 1, 0,		// MY,MV,MX,RGB
 		0x3a, 1, 0x05,	// Pixel Format
 		0x21, 1, 1,		// pixel invert
+		0x35, 1, 0x00,	// tearing effect pin on (v-blanking only)
 
-		// Rongstar: ---- ST7789V Frame rate setting ----
+		// ---- Frame rate setting ----
 		0xb2, 5, 0x0c, 0x0c, 0x00, 0x33, 0x33,
 		0xb7, 1, 0x35, 
 
-		// Rongstar: ---- ST7789V Power setting ----
+		// ---- Power setting ----
 		0xbb, 1, 0x35,
 		0xc0, 1, 0x2c,
 		0xc2, 1, 0x01,
-		0xc3, 1, 0x0b,
-		0xc4, 1, 0x20,
-		0xc6, 1, 0x0f,
+		0xc3, 1, 0x08,	// VRH Set: 3.95+ (vcom+vcom offset+0.5vdv)
+		0xc4, 1, 0x18,	// VDV Set: -0.2
+		0xc6, 1, 0x15,	// frame rate ( 50 FPS - measured )
 		0xd0, 2, 0xa4, 0xa1,
 
-		// Rongstar: ---- ST7789V Gamma setting ----
-		0xe0, 14, 0xd0, 0x00, 0x02, 0x07,  0x0b, 0x1a, 0x31, 0x54,  0x40, 0x29, 0x12, 0x12,  0x12, 0x17,
-		0xe1, 14, 0xd0, 0x00, 0x02, 0x07,  0x05, 0x25, 0x2d, 0x44,  0x45, 0x1c, 0x18, 0x16,  0x1c, 0x1d,
+		// ---- Gamma setting ----
+		0xe0, 14, 0xD0, 0x08, 0x11, 0x08, 0x0C, 0x15, 0x39, 0x33, 0x50, 0x36, 0x13, 0x14, 0x29, 0x2d,
+		0xe1, 14, 0xD0, 0x08, 0x11, 0x08, 0x06, 0x06, 0x39, 0x44, 0x51, 0x0b, 0x16, 0x14, 0x2f, 0x31,
 		kDelayMS, 80,
 
 		kDelayMS, 0
@@ -530,6 +567,9 @@ void ili9341Begin(void *refcon, CommodettoCoordinate x, CommodettoCoordinate y, 
 {
 	spiDisplay sd = refcon;
 	uint16_t xMin, xMax, yMin, yMax;
+	if (sd->nothingSent)
+		xSemaphoreGive(sd->colorsInFlight);
+	sd->nothingSent = 1;
 
 	xMin = x + MODDEF_ILI9341P8_COLUMN_OFFSET;
 	yMin = y + MODDEF_ILI9341P8_ROW_OFFSET;
@@ -541,7 +581,9 @@ void ili9341Begin(void *refcon, CommodettoCoordinate x, CommodettoCoordinate y, 
 	sd->updateLinesRemaining = h;
 	sd->yMin = yMin;
 	sd->yMax = yMax;
+#ifdef MODDEF_ILI9341P8_TEARINGEFFECT_PIN
 	sd->firstBuffer = !sd->firstFrame && !sd->isContinue;
+#endif
 
 	uint8_t *data = sd->data + (4 * (sd->ping++ & 7)); 
 	data[0] = xMin & 0xff;
@@ -563,14 +605,18 @@ void ili9341Begin(void *refcon, CommodettoCoordinate x, CommodettoCoordinate y, 
 void ili9341Continue(void *refcon)
 {
 	spiDisplay sd = refcon;
+#ifdef MODDEF_ILI9341P8_TEARINGEFFECT_PIN
 	sd->isContinue = true;
+#endif
 }
 
 void ili9341End(void *refcon)
 {
 	spiDisplay sd = refcon;
 
+#ifdef MODDEF_ILI9341P8_TEARINGEFFECT_PIN
 	sd->isContinue = false;
+#endif
 	if (sd->firstFrame) {
 		sd->firstFrame = false;
 
@@ -581,6 +627,11 @@ void ili9341End(void *refcon)
 		modGPIOWrite(&sd->backlight, MODDEF_ILI9341P8_BACKLIGHT_ON);
 #endif
 	}
+
+	if (sd->nothingSent) {
+		xSemaphoreGive(sd->colorsInFlight);
+		sd->nothingSent = 0;
+	}
 }
 
 #ifdef MODDEF_ILI9341P8_TEARINGEFFECT_PIN
@@ -589,20 +640,11 @@ void tearingEffectISR(void *refcon)
 {
 	spiDisplay sd = refcon;
 
-	if (sd->te_pixels) {
-		esp_lcd_panel_io_tx_color(sd->io_handle, 0x2C, sd->te_pixels, sd->te_byteLength);		//@@ ISR safe!?!?!?
-
-		sd->yMin += (sd->te_byteLength >> 1) / sd->updateWidth;  
-
-		// reversing endian!
-		uint8_t *data = sd->data + (4 * (sd->ping++ & 7)); 
-		data[0] = sd->yMin & 0xff;
-		data[1] = sd->yMin >> 8;;
-		data[2] = sd->yMax & 0xff;
-		data[3] = sd->yMax >> 8;;
-		ili9341CommandAsync(sd, 0x2b, data, 4);		//@@ not ISR safe!
-
-		sd->te_pixels = NULL;
+	if (sd->waiting) {
+		BaseType_t high_task_woken = pdFALSE;
+		sd->waiting = 0;
+		xSemaphoreGiveFromISR(sd->startSend, &high_task_woken);
+		portYIELD_FROM_ISR(high_task_woken);
 	}
 }
 

@@ -41,13 +41,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define mxRegExp 1
 //#define mxReport 1
-#define mxNoFunctionLength 1
-#define mxNoFunctionName 1
-#define mxHostFunctionPrimitive 1
 //#define mxDebug 1
-#define mxFewGlobalsTable 1
 #ifdef mxDebug
 	#define mxNoConsole 1
 #endif
@@ -151,9 +146,6 @@ typedef struct DebugFragmentRecord *DebugFragment;
 	uint8_t *heap_pend; \
 	void *msgQueue; \
 	void *task; \
-	void *waiterCondition; \
-	void *waiterData; \
-	void *waiterLink; \
 	mxMachineDebug \
 	mxMachineInstrument
 

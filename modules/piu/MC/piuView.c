@@ -24,7 +24,6 @@
 #else
 enum {
 	piuDrawContentCommand,
-	piuDrawFrameCommand,
 	piuDrawStringCommand,
 	piuDrawTextureCommand,
 	piuFillColorCommand,
@@ -45,16 +44,6 @@ typedef struct {
 	PocoDimension sw;
 	PocoDimension sh;
 } PiuDrawContentCommand;
-
-typedef struct {
-	PiuCommandID id;
-	uint8_t *data;
-	uint32_t dataSize;
-	PocoCoordinate x;
-	PocoCoordinate y;
-	PocoDimension sw;
-	PocoDimension sh;
-} PiuDrawFrameCommand;
 
 typedef struct {
 	PiuCommandID id;
@@ -382,26 +371,6 @@ void PiuViewDrawContent(PiuView* self, PiuViewDrawContentProc proc, void* it, Pi
 		PIUQueueCommand(DrawContentCommand);
 		command->proc = proc;
 		command->content = it;
-		command->x = x;
-		command->y = y;
-		command->sw = sw;
-		command->sh = sh;
-	}
-#endif
-}
-
-void PiuViewDrawFrame(PiuView* self, uint8_t *data, uint32_t dataSize, PiuCoordinate x, PiuCoordinate y, PiuDimension sw, PiuDimension sh)
-{
-	Poco poco = (*self)->poco;
-	x += poco->xOrigin;
-	y += poco->yOrigin;
-#ifdef piuGPU
-	PocoDrawFrame(poco, data, dataSize, x, y, sw, sh);
-#else
-	{
-		PIUQueueCommand(DrawFrameCommand);
-		command->data = data;
-		command->dataSize = dataSize;
 		command->x = x;
 		command->y = y;
 		command->sw = sw;
@@ -830,9 +799,6 @@ void PiuViewMark(xsMachine* the, void* it, xsMarkRoot markRoot)
 			PiuMarkHandle(the, ((PiuDrawContentCommand*)command)->content);
 			current += sizeof(PiuDrawContentCommand);
 			break;
-		case piuDrawFrameCommand:
-			current += sizeof(PiuDrawFrameCommand);
-			break;
 		case piuDrawStringCommand:
 			PiuMarkString(the, ((PiuDrawStringCommand*)command)->string);
 			current += sizeof(PiuDrawStringCommand);
@@ -947,11 +913,19 @@ void PiuViewReschedule(PiuView* self)
 	}
 }
 
+#ifndef mxPiuSloMo
+	#define mxPiuSloMo 0
+#endif
+
 PiuTick PiuViewTicks(PiuView* self)
 {
 	if ((*self)->idleTicks)
 		return (*self)->idleTicks;
+#if mxPiuSloMo
+	return modMilliseconds() / 60;
+#else
 	return modMilliseconds();
+#endif
 }
 
 void PiuViewUpdate(PiuView* self, PiuApplication* application)
@@ -970,9 +944,18 @@ void PiuViewUpdate(PiuView* self, PiuApplication* application)
 	PiuRectangleSet(&area, data[1], data[2], data[3], data[4]);
 	if (!PiuRectangleIsEmpty(&area)) {
 #endif
-		PiuViewBegin(self);
-		(*(*application)->dispatch->update)(application, self, &area);
-		PiuViewEnd(self);
+	#if mxPiuSloMo
+		static PiuTick former = 0;
+		PiuTick current = modMilliseconds();
+		if (current - former >= 1000) {
+			former = current;
+	#endif
+			PiuViewBegin(self);
+			(*(*application)->dispatch->update)(application, self, &area);
+			PiuViewEnd(self);
+	#if mxPiuSloMo
+		}
+	#endif
 	}
 }
 
@@ -983,7 +966,6 @@ void PiuViewUpdateStep(PiuView* self, PocoCoordinate x, PocoCoordinate y, PocoDi
 #if (defined(__GNUC__) && defined(__OPTIMIZE__)) || defined(__llvm__)
 	static void *const gxDispatches[] ICACHE_XS6RO_ATTR = {
 		&&PIUDrawContentCommand,
-		&&PIUDrawFrameCommand,
 		&&PIUDrawStringCommand,
 		&&PIUDrawTextureCommand,
 		&&PIUFillColorCommand,
@@ -998,7 +980,7 @@ void PiuViewUpdateStep(PiuView* self, PocoCoordinate x, PocoCoordinate y, PocoDi
 	Poco poco = (*self)->poco;
 	PixelsOutDispatch pixelsOutDispatch = poco->outputRefcon ? *(PixelsOutDispatch *)poco->outputRefcon : NULL;
 	uint32_t current = sizeof(PiuViewRecord);
-	int result;
+	int result = 0;
 
 #if kPocoFrameBuffer
 	if (!(poco->flags & kPocoFlagFrameBuffer))
@@ -1042,9 +1024,6 @@ void PiuViewUpdateStep(PiuView* self, PocoCoordinate x, PocoCoordinate y, PocoDi
 		PIUCase(DrawContentCommand)
 			(*command->proc)(command->content, self, command->x, command->y, command->sw, command->sh);
 			PIUBreak;
-		PIUCase(DrawFrameCommand)
-			PocoDrawFrame(poco, command->data, command->dataSize, command->x, command->y, command->sw, command->sh);
-			PIUBreak;
 		PIUCase(DrawStringCommand)
 			PiuViewDrawStringAux(self, command->string, command->offset, command->length, command->font, command->color, command->blend, command->x, command->y, command->w, command->sw);
 			PIUBreak;
@@ -1070,7 +1049,6 @@ void PiuViewUpdateStep(PiuView* self, PocoCoordinate x, PocoCoordinate y, PocoDi
 				do {
 					switch (*((PiuCommandID*)(((uint8_t*)(*self)) + current))) {
 						case piuDrawContentCommand:		current += sizeof(PiuDrawContentCommand); break;
-						case piuDrawFrameCommand:		current += sizeof(PiuDrawFrameCommand); break;
 						case piuDrawStringCommand:		current += sizeof(PiuDrawStringCommand); break;
 						case piuDrawTextureCommand:		current += sizeof(PiuDrawTextureCommand); break;
 						case piuFillColorCommand:		current += sizeof(PiuFillColorCommand); break;
@@ -1104,15 +1082,8 @@ done:
 			xsCallFunction4((*self)->_begin, xsReference((*self)->screen), xsInteger(poco->x), xsInteger(poco->y), xsInteger(poco->w), xsInteger(poco->h));
 			result = PocoDrawingEnd(poco, poco->pixels, poco->pixelsLength, PiuViewReceiver, self);
 		}
-		if (result) {
-			if (1 == result)
-				xsErrorPrintf("display list overflowed");
-			if (2 == result)
-				xsErrorPrintf("clip/origin stack not cleared");
-			if (3 == result)
-				xsErrorPrintf("clip/origin stack under/overflow");
-			xsErrorPrintf("unknown error");
-		}
+		if (result) goto fail;
+
 		if (flag) {
 			if (pixelsOutDispatch)
 				(pixelsOutDispatch->doContinue)(poco->outputRefcon);
@@ -1133,7 +1104,8 @@ done:
 endStepFrameBuffer:
 		PocoClipPop(poco);
 		if (!flag) {
-			PocoDrawingEndFrameBuffer(poco);
+			result = PocoDrawingEndFrameBuffer(poco);
+			if (result) goto fail;
 
 			if (pixelsOutDispatch)
 				(pixelsOutDispatch->doEnd)(poco->outputRefcon);
@@ -1144,6 +1116,19 @@ endStepFrameBuffer:
 		}
 	}
 #endif
+
+	return;
+
+fail:
+	if (1 == result)
+		xsErrorPrintf("display list overflowed");
+	if (2 == result)
+		xsErrorPrintf("clip/origin stack not cleared");
+	if (3 == result)
+		xsErrorPrintf("clip/origin stack under/overflow");
+	if (5 == result)
+		xsErrorPrintf("drawFrame unavailable");
+	xsErrorPrintf("unknown error");
 }
 #endif
 
@@ -1390,6 +1375,15 @@ void PiuView_get_rotation(xsMachine* the)
 #endif
 }
 
+void PiuView_get_ticks(xsMachine* the) 
+{
+#if mxPiuSloMo
+	xsResult = xsNumber(modMilliseconds() / 60);
+#else
+	xsResult = xsNumber(modMilliseconds());
+#endif
+}
+
 void PiuView_onDisplayReady(xsMachine* the)
 {
 #ifdef piuGPU
@@ -1446,6 +1440,21 @@ void PiuView_onMessage(xsMachine* the)
 	PiuViewUpdate(self, application);
 	PiuApplicationIdleCheck(application);
 	(*self)->idleTicks = 0;
+}
+
+void PiuView_onQuit(xsMachine* the)
+{
+	PiuView* self = PIU(View, xsThis);
+	PiuApplication* application = (*self)->application;
+	if (!application) return;
+	if ((*application)->behavior) {
+		xsVars(2);
+		xsVar(0) = xsReference((*application)->behavior);
+		if (xsFindResult(xsVar(0), xsID_onQuit)) {
+			xsVar(1) = xsReference((*application)->reference);
+			(void)xsCallFunction1(xsResult, xsVar(0), xsVar(1));
+		}
+	}
 }
 
 void PiuView_onTouchBegan(xsMachine* the)

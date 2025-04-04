@@ -38,6 +38,7 @@ START_COMMAND = cd $(MODDABLE)\tools\xsbug-log && node xsbug-log start /B $(SIMU
 !ELSE
 START_COMMAND = start $(SIMULATOR) $(SIMULATORS) $(BIN_DIR)\mc.dll
 !ENDIF
+KILL_COMMAND = taskkill /im mcsim.exe /F 2> nul || (call )
 
 XS_DIRECTORIES = \
 	/I$(XS_DIR)\includes \
@@ -106,13 +107,8 @@ C_DEFINES = \
 	/D XS_ARCHIVE=1 \
 	/D INCLUDE_XSPLATFORM=1 \
 	/D XSPLATFORM=\"win_xs.h\" \
-	/D mxRun=1 \
-	/D mxNoFunctionLength=1 \
-	/D mxNoFunctionName=1 \
-	/D mxHostFunctionPrimitive=1 \
-	/D mxFewGlobalsTable=1 \
-	/D kCommodettoBitmapFormat=$(DISPLAY) \
-	/D kPocoRotation=$(ROTATION)
+	/D kCommodettoBitmapFormat=$(COMMODETTOBITMAPFORMAT) \
+	/D kPocoRotation=$(POCOROTATION)
 !IF "$(INSTRUMENT)"=="1"
 C_DEFINES = $(C_DEFINES) \
 	/D MODINSTRUMENTATION=1 \
@@ -145,26 +141,15 @@ C_FLAGS = $(C_FLAGS) \
 	/W0
 !ENDIF
 
-LINK_LIBRARIES = ws2_32.lib advapi32.lib comctl32.lib comdlg32.lib gdi32.lib kernel32.lib user32.lib dsound.lib wlanapi.lib Iphlpapi.lib winmm.lib
+LINK_LIBRARIES = ws2_32.lib advapi32.lib comctl32.lib comdlg32.lib gdi32.lib kernel32.lib user32.lib ole32.lib dsound.lib wlanapi.lib Iphlpapi.lib winmm.lib Mfplat.lib Mf.lib Mfreadwrite.lib Mfuuid.lib
 
 LINK_OPTIONS = /incremental:no /nologo /dll
 !IF "$(DEBUG)"=="1"
 LINK_OPTIONS = $(LINK_OPTIONS) /debug
 !ENDIF
 
-BUILDCLUT = $(BUILD_DIR)\bin\win\debug\buildclut
-COMPRESSBMF = $(BUILD_DIR)\bin\win\debug\compressbmf
-IMAGE2CS = $(BUILD_DIR)\bin\win\debug\image2cs
-MCLOCAL = $(BUILD_DIR)\bin\win\debug\mclocal
-MCREZ = $(BUILD_DIR)\bin\win\debug\mcrez
-PNG2BMP = $(BUILD_DIR)\bin\win\debug\png2bmp
-RLE4ENCODE = $(BUILD_DIR)\bin\win\debug\rle4encode
-WAV2MAUD = $(BUILD_DIR)\bin\win\debug\wav2maud
-XSC = $(BUILD_DIR)\bin\win\debug\xsc
-XSID = $(BUILD_DIR)\bin\win\debug\xsid
-XSL = $(BUILD_DIR)\bin\win\debug\xsl
-	
 all: build
+	$(KILL_COMMAND)
 	$(START_XSBUG)
 	$(START_COMMAND)
 
@@ -182,6 +167,10 @@ clean:
 	if exist $(LIB_DIR) del /s/q/f $(LIB_DIR)\*.* > NUL
 	if exist $(LIB_DIR) rmdir /s/q $(LIB_DIR)
 
+xsbug:
+	$(KILL_COMMAND)
+	$(START_XSBUG)
+	$(START_COMMAND)
 
 $(LIB_DIR) :
 	if not exist $(LIB_DIR)\$(NULL) mkdir $(LIB_DIR)
@@ -203,7 +192,7 @@ $(TMP_DIR)\mc.xs.obj: $(TMP_DIR)\mc.xs.c $(HEADERS)
 	
 $(TMP_DIR)\mc.xs.c: $(MODULES) $(MANIFEST)
 	@echo # xsl modules
-	$(XSL) <<args.txt 
+	xsl <<args.txt 
 -b $(MODULES_DIR) -o $(TMP_DIR) $(PRELOADS) $(STRIPS) $(CREATION) $(MODULES)
 <<
 
@@ -212,6 +201,6 @@ $(TMP_DIR)\mc.resources.obj: $(TMP_DIR)\mc.resources.c $(HEADERS)
 
 $(TMP_DIR)\mc.resources.c: $(DATA) $(RESOURCES) $(MANIFEST)
 	@echo # mcrez resources
-	$(MCREZ) <<args.txt
+	mcrez <<args.txt
 $(DATA) $(RESOURCES) -o $(TMP_DIR) -r mc.resources.c
 <<

@@ -18,12 +18,13 @@
 #
 
 START_SIMULATOR = export XSBUG_PORT=$(XSBUG_PORT) && export XSBUG_HOST=$(XSBUG_HOST) && open -a $(SIMULATOR) $(SIMULATORS) $(BIN_DIR)/mc.so
+KILL_SIMULATOR = osascript -e 'quit app "mcsim"'
 
 ifeq ($(DEBUG),1)
-	ifeq ($(XSBUG_LOG),1)
-		START_XSBUG = 
+	START_XSBUG = 
+	ifeq ("$(XSBUG_LAUNCH)","log")
 		START_SIMULATOR = export XSBUG_PORT=$(XSBUG_PORT) && export XSBUG_HOST=$(XSBUG_HOST) && cd $(MODDABLE)/tools/xsbug-log && node xsbug-log open -a $(SIMULATOR) $(SIMULATORS) $(BIN_DIR)/mc.so
-	else
+	else ifeq ("$(XSBUG_LAUNCH)","app")
 		START_XSBUG = open -a $(BUILD_DIR)/bin/mac/release/xsbug.app -g
 	endif	
 	KILL_SERIAL2XSBUG = $(shell pkill serial2xsbug)
@@ -97,13 +98,8 @@ C_DEFINES = \
 	-DXS_ARCHIVE=1 \
 	-DINCLUDE_XSPLATFORM=1 \
 	-DXSPLATFORM=\"mac_xs.h\" \
-	-DmxRun=1 \
-	-DmxNoFunctionLength=1 \
-	-DmxNoFunctionName=1 \
-	-DmxHostFunctionPrimitive=1 \
-	-DmxFewGlobalsTable=1 \
-	-DkCommodettoBitmapFormat=$(DISPLAY) \
-	-DkPocoRotation=$(ROTATION)
+	-DkCommodettoBitmapFormat=$(COMMODETTOBITMAPFORMAT) \
+	-DkPocoRotation=$(POCOROTATION)
 ifeq ($(INSTRUMENT),1)
 	C_DEFINES += -DMODINSTRUMENTATION=1 -DmxInstrument=1
 endif
@@ -124,38 +120,31 @@ endif
 # LINK_OPTIONS = -arch i386 -dynamiclib -flat_namespace -undefined suppress -Wl,-exported_symbol,_fxScreenLaunch -Wl,-dead_strip
 LINK_OPTIONS = -dynamiclib -flat_namespace -undefined suppress -Wl,-exported_symbol,_fxScreenLaunch -Wl,-dead_strip -lobjc $(MACOS_ARCH)
 
-BUILDCLUT = $(BUILD_DIR)/bin/mac/release/buildclut
-COMPRESSBMF = $(BUILD_DIR)/bin/mac/release/compressbmf
-IMAGE2CS = $(BUILD_DIR)/bin/mac/release/image2cs
-MCLOCAL = $(BUILD_DIR)/bin/mac/debug/mclocal
-MCREZ = $(BUILD_DIR)/bin/mac/release/mcrez
-PNG2BMP = $(BUILD_DIR)/bin/mac/debug/png2bmp
-RLE4ENCODE = $(BUILD_DIR)/bin/mac/release/rle4encode
-WAV2MAUD = $(BUILD_DIR)/bin/mac/release/wav2maud
-XSC = $(BUILD_DIR)/bin/mac/release/xsc
-XSID = $(BUILD_DIR)/bin/mac/release/xsid
-XSL = $(BUILD_DIR)/bin/mac/debug/xsl
-
 VPATH += $(XS_DIRECTORIES)
-
-.PHONY: all	
 
 XSBUG_HOST ?= localhost
 XSBUG_PORT ?= 5002
+
+.PHONY: all	build clean xsbug
 	
-all: precursor
+all: build
 	$(KILL_SERIAL2XSBUG) 
+	$(KILL_SIMULATOR) 
 	$(START_XSBUG)
 	$(START_SIMULATOR)
 
-precursor: $(LIB_DIR) $(BIN_DIR)/mc.so
+build: $(LIB_DIR) $(BIN_DIR)/mc.so
 
 clean:
-	echo "# Clean project"
+	@echo "# Clean project"
 	-rm -rf $(BIN_DIR) 2>/dev/null
 	-rm -rf $(TMP_DIR) 2>/dev/null
 
-build: precursor
+xsbug:
+	$(KILL_SERIAL2XSBUG) 
+	$(KILL_SIMULATOR) 
+	$(START_XSBUG)
+	$(START_SIMULATOR)
 
 $(LIB_DIR):
 	mkdir -p $(LIB_DIR)
@@ -176,7 +165,7 @@ $(TMP_DIR)/mc.xs.c.o: $(TMP_DIR)/mc.xs.c $(HEADERS)
 	
 $(TMP_DIR)/mc.xs.c: $(MODULES) $(MANIFEST)
 	@echo "# xsl modules"
-	$(XSL) -b $(MODULES_DIR) -o $(TMP_DIR) $(PRELOADS) $(STRIPS) $(CREATION) $(MODULES)
+	xsl -b $(MODULES_DIR) -o $(TMP_DIR) $(PRELOADS) $(STRIPS) $(CREATION) $(MODULES)
 
 $(TMP_DIR)/mc.resources.c.o: $(TMP_DIR)/mc.resources.c $(HEADERS)
 	@echo "# cc" $(<F)
@@ -184,7 +173,7 @@ $(TMP_DIR)/mc.resources.c.o: $(TMP_DIR)/mc.resources.c $(HEADERS)
 
 $(TMP_DIR)/mc.resources.c: $(DATA) $(RESOURCES) $(MANIFEST)
 	@echo "# mcrez resources"
-	$(MCREZ) $(DATA) $(RESOURCES) -o $(TMP_DIR) -r mc.resources.c
+	mcrez $(DATA) $(RESOURCES) -o $(TMP_DIR) -r mc.resources.c
 	
 MAKEFLAGS += --jobs
 ifneq ($(VERBOSE),1)

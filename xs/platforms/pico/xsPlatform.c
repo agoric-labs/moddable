@@ -46,6 +46,10 @@
 #include "xsHost.h"
 #include "pico/sem.h"
 
+#if SFE_ALLOC
+	#include "sparkfun_pico/sfe_pico_alloc.h"
+#endif
+
 #ifdef mxDebug
 	#include "modPreference.h"
 #endif
@@ -72,6 +76,14 @@ static int gDebugMutexInited = 0;
 #define mxDebugMutexTake()	sem_acquire_blocking(&gDebugMutex)
 #define mxDebugMutexGive()	sem_release(&gDebugMutex)
 #define mxDebugMutexAllocated() (gDebugMutexInited)
+
+int modMessagePostToMachine(xsMachine *the, uint8_t *message, uint16_t messageLength, modMessageDeliver callback, void *refcon);
+int modMessagePostToMachineFromISR(xsMachine *the, modMessageDeliver callback, void *refcon);
+int modMessageService(xsMachine *the, int maxDelayMS);
+void modMachineTaskInit(xsMachine *the);
+void modMachineTaskUninit(xsMachine *the);
+void modMachineTaskWait(xsMachine *the);
+void modMachineTaskWake(xsMachine *the);
 
 
 void fxCreateMachinePlatform(txMachine* the)
@@ -204,30 +216,57 @@ void fxAbort(txMachine* the, int status)
 	}
 #endif
 
-#if defined(mxDebug) || defined(mxInstrument)
+#ifdef mxDebug
+	if ((XS_DEAD_STRIP_EXIT == status) && the->debugEval)
+		mxUnknownError("dead strip");
+#endif
+
+#if defined(mxDebug) || defined(mxInstrument) || defined(MODDEF_XS_ABORTHOOK)
 	const char *msg = (status <= XS_UNHANDLED_REJECTION_EXIT) ? gXSAbortStrings[status] : "unknown";
 
+	#if MODDEF_XS_ABORTHOOK
+		if ((XS_STACK_OVERFLOW_EXIT != status) && (XS_DEBUGGER_EXIT != status)) {
+			xsBooleanValue ignore = false;
+			
+			fxBeginHost(the);
+			{
+				mxPush(mxException);
+				txSlot *exception = the->stack;
+				mxException = xsUndefined;
+				mxTry(the) {
+					txID abortID = fxFindName(the, "abort");
+					mxOverflow(-8);
+					mxPush(mxGlobal);
+					if (fxHasID(the, abortID)) {
+						mxPush(mxGlobal);
+						fxCallID(the, abortID);
+						mxPushStringC((char *)msg);
+						mxPushSlot(exception);
+						fxRunCount(the, 2);
+						ignore = (XS_BOOLEAN_KIND == the->stack->kind) && !the->stack->value.boolean;
+						mxPop();
+					}
+				}
+				mxCatch(the) {
+				}
+			}
+			fxEndHost(the);
+			if (ignore)
+				return;
+		}
+	#endif
+
 	fxReport(the, "XS abort: %s\n", msg);
-	#if defined(mxDebug) && !MODDEF_XS_TEST
-		fxDebugger(the, (char*)__FILE__, __LINE__);
+	#if !defined(MODDEF_XS_DEBUGABORT) || MODDEF_XS_DEBUGABORT
+		#if defined(mxDebug) && !MODDEF_XS_TEST
+			if ((char *)&the <= the->stackLimit)
+				the->stackLimit = NULL;
+			fxDebugger(the, (char *)__FILE__, __LINE__);
+		#endif
 	#endif
 #endif
 
-#ifdef MODDEF_XS_RESTARTON
-	static const int restart[] = {
-		#if defined(mxDebug)
-			XS_DEBUGGER_EXIT,
-			XS_FATAL_CHECK_EXIT,
-		#endif
-			MODDEF_XS_RESTARTON };
-	int i;
-	for (i = 0; i < sizeof(restart) / sizeof(int); i++) {
-		if (restart[i] == status)
-			c_exit(status);
-	}
-#else
 	c_exit(status);
-#endif
 }
 
 #ifdef mxDebug
@@ -727,7 +766,13 @@ uint8_t fxInNetworkDebugLoop(txMachine *the)
 }
 
 uint32_t pico_memory_remaining() {
+#if SFE_ALLOC
+	uint32_t max = sfe_mem_size();
+	uint32_t cur = sfe_mem_used();
+	return (max - cur);
+#else
 	return (1024);
+#endif
 }
 
 

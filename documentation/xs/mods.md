@@ -1,6 +1,6 @@
 # Mods - User Installed Extensions
 Copyright 2020-2023 Moddable Tech, Inc.<BR>
-Revised: May 16, 2023
+Revised: October 11, 2023
 
 Mods are scripts that users can install on their IoT products to add new features and change existing behaviors. A mod is one or more JavaScript modules together with assets like images, audio, and certificates. A mod augments the software of a product without changing the factory installed firmware. To minimize safety, security, and privacy risks, products may sandbox mods using Secure ECMAScript (aka Hardened JavaScript). Mods are a new core feature of the Moddable SDK supported by the XS JavaScript engine.
 
@@ -8,7 +8,7 @@ Mods are simple to create but the technology behind them is complex. This articl
 
 ## Key Characteristics of Mods
 
-Mods are a tool to extend the capabilities of IoT products. It is rare today for an IoT product to support extensions, and when they do it is through native code. Using JavaScript as the foundation for mods not only makes it feasible to support extensibility in many more products, it empowers many more users to do so. 
+Mods are a tool to extend the capabilities of IoT products. It is rare today for an IoT product to support extensions, and when they do it is through native code. Using JavaScript as the foundation for mods not only makes it feasible to support extensibility in many more products, it empowers many more users to do so.
 
 - **Mods are portable** - The JavaScript language was designed from the start to be independent of both the host operating system and the host hardware. The Moddable SDK follows that by providing APIs that are consistent across devices.  This portability is critical so that developers can use their knowledge and experience across devices from many different manufacturers, rather than needing to learn new development tools, a new language, and new APIs for each IoT product.
 - **Mods are standard** - IoT products are built using standards -- from standard electrical connectors to standard Wi-Fi -- to ensure they are reliable, safe, and can interoperate with products from different manufacturers. Mods follow this proven pattern by using modern industry-standard JavaScript (ECMAScript 2020) as their programming language. Moddable is helping to standardize APIs for IoT products through the Ecma TC53 committee, ECMAScript Modules for Embedded Systems.
@@ -52,7 +52,7 @@ trace(`Software version ${config.version}\n`);
 ```
 
 The mod contains a single data file, a text file with a short message.
- 
+
 ```
 Hello, mod.
 ```
@@ -78,18 +78,20 @@ The manifest tells the build system to include these two files.
 }
 ```
 
+> **Note**: If there are no `"config"` values, either in the manifest or on the command line, then the "mod/config" module is not created.
+
 ## Building, Running, and Debugging a Mod
 A mod is built and run using the `mcrun` command line tool from the Moddable SDK. The `mcrun` tool is very similar to `mcconfig` which builds full hosts that include native code.
 
 To build and run the example mod above, set the current working directory to the mod and then execute `mcrun`:
 
-```
+```shell
 mcrun -d -m
 ```
 
 The output from a successful build looks as follows:
 
-```
+```shell
 > mcrun -d -m
 # copy message.txt
 # xsc mod.xsb
@@ -102,7 +104,7 @@ When building for the desktop, the mod is automatically opened in the simulator.
 
 You can use `mcrun` to build and install the mod on a microcontroller by specifying the target platform with the `-p` option in the same way as `mcconfig`.
 
-```
+```shell
 mcrun -d -m -p esp32/moddable_two
 ```
 
@@ -119,7 +121,7 @@ This section shows the essential steps for creating a mod host.
 #### Manifest
 The commonly used manifests in the Moddable SDK, such as [`manifest_base.json`](https://github.com/Moddable-OpenSource/moddable/blob/public/examples/manifest_base.json), do not enable support for mods because supporting mods requires some additional code. Only projects that actually use mods should include that code. To enable mods, add `XS_MODS` to the `defines` section of the project's manifest.
 
-```
+```json
 "defines": {
 	"XS_MODS": 1
 },
@@ -134,9 +136,9 @@ import Modules from "modules";
 
 Add the manifest for the `Modules` module to your project manifest:
 
-```
+```json
 "include": [
-	$(MODULES)/base/modules/manifest.json
+	"$(MODULES)/base/modules/manifest.json"
 ]
 ```
 
@@ -157,7 +159,7 @@ if (Modules.has("mod"))
 	Modules.importNow("mod");
 ```
 
-The `importNow` function loads the module and executes the module's body, similar to calling dynamic `import`, though `importNow` is synchronous. 
+The `importNow` function loads the module and executes the module's body, similar to calling dynamic `import`, though `importNow` is synchronous.
 
 The `importNow` function returns the module's default export. Consider the following mod that exports several functions through its default export.
 
@@ -181,7 +183,7 @@ mod.onLaunch();
 The mod host invokes the other functions at the appropriate time, `onLightOn` when the light is turned on, `onLightOff` and when it is turned off.
 
 ### Checking Compatibility at Runtime
-Every mod has a module named `check` which contains a function to verify that the mod is compatible with the current host. By default the `check` module is created automatically by `mcrun` to verify that any graphics in the mod are compatible with the current host. It is a good practice to invoke the `check` module before any other. The `check` module exports a function that throws an exception if it finds an incompatibility.
+Each mod can have a module named `check` which contains a function to verify that the mod is compatible with the current host. By default the `check` module is created automatically by `mcrun` to verify that any graphics in the mod are compatible with the current host. It is a good practice to invoke the `check` module, when present, before any other. The `check` module exports a function that throws an exception if it finds an incompatibility.
 
 ```js
 if (Modules.has("check")) {
@@ -195,24 +197,27 @@ if (Modules.has("check")) {
 }
 ```
 
+If the pixel format is set to `"x"`, the `check` module is not generated by `mcrun`. To set the pixel format, use `-f x` on the command line when invoking `mcrun` or set `"format"` in the `"config"` section of the mod's manifest.
+
 ### Keys
 The dynamic nature of the JavaScript language means that the JavaScript engine needs to keep track of all properties names used by the virtual machine. XS does this using a key array. The [`preload`](https://github.com/Moddable-OpenSource/moddable/blob/public/documentation/xs/preload.md) feature used for building hosts for microcontrollers stores all the host's property names into a key array in flash storage.
 
-At launch, XS creates a second array to store keys created at runtime. The length of this array is fixed when it is created. The `manifest_base.json` manifest file used by many projects configures the runtime key array to hold 32 keys. Because hosts usually create just a handful of keys at runtime, 32 is sufficient.
+At launch, XS creates a second array to store keys created at runtime. This array has an initial allocation size and then grows in increments as needed.
 
-Mods, however, may create many more symbols because they can contain code with many property names that do not appear in the host. To accommodate this, a  project can adjust the length of the runtime key array by changing the number of available keys in the defines section of the manifest.
+Mods, however, may create many more symbols because they can contain code with many property names that do not appear in the host. To accommodate this, a  project can adjust the initial length of the runtime key array in the `"creation"` section of the manifest.
 
-```
+```json
 "creation": {
 	"keys": {
-		"available": 128
+		"initial": 128,
+		"incremental": 32
 	}
 }
 ```
 
 Each entry in the key array is a pointer, which is 4 bytes on a 32-bit microcontroller. The 128 key table above uses 512 bytes of memory.
 
-The instruments pane in xsbug displays the number of keys allocated in the runtime key array in the "Keys Used" section. Monitoring this value can help select an optimal length for the runtime key array.
+The instruments pane in xsbug displays the number of keys allocated in the runtime key array in the "Keys Used" section. Monitoring this value can help select an optimal initial length for the runtime key array.
 
 ### JavaScript Language Features
 The default behavior of the Moddable SDK build tools is to remove any JavaScript language features that are not used by the host modules. This process reduces the size of the engine, saving flash storage space and speeding installation time.
@@ -221,13 +226,13 @@ The XS linker is able to safely strip unused language features by analyzing the 
 
 A mod host can use the manifest to control which language features are available instead of allowing the XS linker to perform automatic stripping. The simplest approach is to keep all language features. For projects with no flash storage pressure, this is a viable option. Add a `strip` object with an empty strip array to the project manifest:
 
-```
+```json
 "strip": []
 ```
 
 A mod host may reduce its flash storage size by explicitly stripping selected features. This is done by naming the constructors and functions to strip.  The following strip array removes features seldom used on constrained microcontrollers, such as `eval`, maps and sets, atomics, shared array buffers, regular expressions, and proxies.
 
-```
+```json
 "strip": [
 	"Atomics",
 	"eval",
@@ -249,7 +254,7 @@ For additional details on stripping language features, see the [Strip](https://g
 When a mod uses a JavaScript language feature that has been stripped, a "dead strip" exception is generated and the virtual machine terminates execution.
 
 ### Securing a Mod
-Mods are powerful because they have access to the same modules and global variables as the host. This means that a mod is likely able to perform all of the same operations as the host. For a simple host that only prepares an environment for the mod to run in, this is not a problem.  However, some hosts want to limit what a mod can do to ensure the integrity of operation of the host. These IoT product hosts want to ensure that the mod can only perform those operations the host chooses to allow. 
+Mods are powerful because they have access to the same modules and global variables as the host. This means that a mod is likely able to perform all of the same operations as the host. For a simple host that only prepares an environment for the mod to run in, this is not a problem.  However, some hosts want to limit what a mod can do to ensure the integrity of operation of the host. These IoT product hosts want to ensure that the mod can only perform those operations the host chooses to allow.
 
 Restricting a script from access to certain capabilities is common. Every web browser ensures the integrity of the user's computer by restricting scripts in many ways. For example, scripts cannot normally access the user's file system.
 
@@ -266,17 +271,17 @@ let c = new Compartment(
 	{
 		"mod": "mod"
 	}
-});
+);
 let exports = c.importNow("mod");
 ```
 
-The first argument to the `Compartment` constructor relates to global variables inside the compartment and is described in the following section. The second argument is the compartment's module map. It performs two functions. First, it determines which modules are available to be imported by scripts running inside the compartment. Second, it allows remapping module specifiers to change how a module is accessed inside the compartment. 
+The first argument to the `Compartment` constructor relates to global variables inside the compartment and is described in the following section. The second argument is the compartment's module map. It performs two functions. First, it determines which modules are available to be imported by scripts running inside the compartment. Second, it allows remapping module specifiers to change how a module is accessed inside the compartment.
 
 The module map above allows only the module named "mod" to be imported inside the compartment. There is no remapping of module specifiers. The property name on the left ("mod") is the module specifier inside the compartment and the value on the right (also "mod") is the module specified in the host.
 
 The call to the `importNow` method loads the module "mod" inside of compartment `c`. Because of the module map, the mod cannot import any of the modules from the host. If it tries to do so, the import fails as if the module is not present.
 
-The compartment map below is changed to use remapping. 
+The compartment map below is changed to use remapping.
 
 ```js
 let c = new Compartment(
@@ -284,7 +289,7 @@ let c = new Compartment(
 	{
 		"modExample": "mod"
 	}
-});
+);
 let exports = c.importNow("modExample");
 ```
 
@@ -302,7 +307,7 @@ let c = new Compartment(
 	{
 		"modExample": "mod"
 	}
-});
+);
 let exports = c.importNow("modExample");
 ```
 
@@ -317,7 +322,7 @@ let c = new Compartment(
 	{
 		"modExample": "mod"
 	}
-});
+);
 let exports = c.importNow("modExample");
 ```
 
@@ -329,7 +334,7 @@ let c = new Compartment(
 	{
 		"modExample": "mod"
 	}
-});
+);
 c.globalThis.sharedSecret = globalThis.secret;
 let exports = c.importNow("modExample");
 ```
@@ -353,18 +358,18 @@ Array.prototype.push = function(...elements) {
 This kind of global patch of built-in objects is called a [monkey patch](https://en.wikipedia.org/wiki/Monkey_patch). It is a technique that allows one script to attack another. In SES, this kind of attack is not possible through the primordial objects because they are frozen, making it impossible to change existing properties. If a script running in a compartment attempts to replace the `push` function, an exception is thrown.
 
 ## Behind the Scenes
-Mods are easy to use, which makes it easy to overlook the many complex details involved in making them work. This section describes implementation details that may be important when working with mods. 
+Mods are easy to use, which makes it easy to overlook the many complex details involved in making them work. This section describes implementation details that may be important when working with mods.
 
 ### Building Mods
-`mcrun` converts the mod's JavaScript source code and data into a single binary file, an XS Archive (.xsa extension). The archive format is designed so JavaScript byte code executes directly from flash storage without having to be copied into memory. 
+`mcrun` converts the mod's JavaScript source code and data into a single binary file, an XS Archive (.xsa extension). The archive format is designed so JavaScript byte code executes directly from flash storage without having to be copied into memory.
 
 The JavaScript modules are precompiled to XS byte code, so no source code is deployed to the target device. This allows the device to begin executing the mod without needing to parse the JavaScript source code first.
 
 The image, font, and audio resources in the manifest are transformed to a format compatible with the target device following the manifest [resource rules](https://github.com/Moddable-OpenSource/moddable/blob/public/documentation/tools/manifest.md#resources).
- 
+
 While the source code to the mod is platform independent, the binary format of the mod is not. The pixel format and rotation of the images is optimized for a specific host, the XS byte code generated is for a specific version of the XS engine, etc. The archive is not a general purpose distribution format for mods.
 
-The `mcrun` tool builds the mod without knowledge of the symbol table of the mod host. XS byte code references symbols by a 16-bit ID. The first time a mod is run by a mod host, XS automatically updates the symbol ID values in the mod's byte code so they match the host IDs. This process is very fast. However, it does mean that the remapped mod data on the device cannot be copied and installed on another device. Instead, a fresh copy of the mod must be installed. When the ID remapping is performed, XS stores a hash of the mod host's symbol table so that if the host is updated independently of the mod, the mod will not attempt to run (as the symbol IDs could be incorrect).
+The `mcrun` tool builds the mod without knowledge of the symbol table of the mod host. XS byte code references symbols by a 16-bit ID. When the mod is run by a mod host, XS automatically updates the symbol ID values in the mod's byte code so they match the host IDs. This process is very fast. The symbol IDs of the mod are only updated when the host changes, not on every run.
 
 ### Interaction with Preload
 When a mod host loads a module, the mod is searched for the module before the host. This allows a mod to override modules of the host.
@@ -387,30 +392,43 @@ xs,       0x40, 1,       0x3A0000, 0x040000,
 
 This reserves 256 KB of space for storing the mod. Moddable SDK projects for the ESP32 can use their own manifest to increase or decrease mod storage, or remove it if they do not support mods.
 
-#### ESP8266
-Storing mods on ESP8266 is more complex than ESP32 for two reasons. First, there are no formally defined partitions so the Moddable SDK must manage flash layout entirely. Second, the mod archive must be memory mapped to allow in-place execution, but the ESP8266 can only memory map the first 1 MB of flash. This requires the mod archive be stored in the same 1 MB of space as the mod host.
+#### ESP8266 and nRF52
+Storing mods on ESP8266 and nRF52 is more complex than ESP32 for two reasons. First, there are no formally defined partitions so the Moddable SDK must manage flash layout entirely. Second, the mod archive must be memory mapped to allow in-place execution, but the ESP8266 can only memory map the first 1 MB of flash and the nRF52 only has 1 MB of flash. This requires the mod archive be stored in the same 1 MB of space as the mod host.
 
 The Moddable SDK solves this problem by storing the mod starting at the first flash sector following the mod host image. This gives the largest possible space for mods on each host. However, it also means that address of the mod and the space available for the mod depends on the host.
 
 ### XS Archive Format
 
-The XS archive file format uses the Box (aka Atom) structuring mechanism of the [ISO Base Media File Format](https://www.loc.gov/preservation/digital/formats/fdd/fdd000079.shtml) to structure data. The basic structure is shown in the following table.
+The XS archive file format uses the Box (aka Atom) structuring mechanism of the [ISO Base Media File Format](https://www.loc.gov/preservation/digital/formats/fdd/fdd000079.shtml) to structure data. The atom structure of the XS archive file is shown in the following table:
 
 ```
 XS_A - signature of the XS archive file
     VERS - XS version number used in byte code
-    SIGN - the MD5 checksum of this mod's modules and data
-    CHKS - MD5 checksum of the host symbol table remapped against, zero before remapping
-    NAME - the dotted name of the mod (null terminated)
+    SIGN - the MD5 checksum of this mod's modules and data (before mapping)
+    NAME - the dotted name of the mod (null terminated string)
     SYMB - the XS symbol table for the mods
+    IDEN - host identifiers in the order of the symbol table (array of XS ID values)
+    MAPS - symbol table indexes in the order of their occurrence in the CODE atoms
     MODS - the modules of this mod
-        PATH - the path of this module (null terminated)
+        PATH - the path of this module (null terminated string)
         CODE - the byte code of of this module
-        (Additional PATH / CODE pairs follow - one per module]
+        (Additional PATH / CODE pairs follow - one per module)
     RSRC - the data of this mod
-        PATH - the path of this module (null terminated)
+        PATH - the path of this module (null terminated string)
         DATA - the data of this resource
-        (Additional PATH / DATA pairs follow - one per piece of data]
+        (Additional PATH / DATA pairs follow - one per piece of data)
 ```
 
-The order of the items that precede `MODS` must be as shown because the microcontroller implementation expects this layout.
+The order of the atoms that precedes the `MODS` atom must be as shown because the microcontroller implementation expects this layout.
+
+When loading the archive, XS iterates on the symbol table to build a mapped identifiers array. If the mapped identifiers array matches the `IDEN` atom, there is nothing else to do. Otherwise, the mapped identifiers table is written into the `IDEN` atom and XS traverses the `MAPS` and `CODE` atoms to map identifiers in the byte code, updating the CODE atoms accordingly.
+
+#### About the Box / Atom structuring mechanism
+
+The atom structuring mechanism is a lightweight way of structuring binary data.
+
+Each atom begins with an 8 byte header consisting of two 32-bit big-endian values. The first value is an unsigned integer that indicates the size of the atom, including the header, in bytes.  The second value is a [four-character code](https://en.wikipedia.org/wiki/FourCC), typically consisting of human-readable ASCII values, that indentifies the content of the atom. For example, for the sole atom at the root of an XS archive file, the first value is the length of the file in bytes and the second value is `XS_A` indicating an atom containing an XS archive.
+
+Each atom may contain atoms and/or other data. The content of an atom is defined by its four-character code. For example, the `RSRC` atom above is defined to contain zero or more pairs of `PATH` and `DATA` atoms, whereas the `NAME` atom is defined to contain a null terminated string.
+
+File readers that do not recognize the four-character code of the atom can skip over the atom using the first value in the atom header. This approach allows new atoms to be introduced without breaking existing readers.

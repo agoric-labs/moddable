@@ -1,43 +1,49 @@
 # xst
+Updated: June 3, 2024
 
 `xst` is the XS test engine, a JavaScript engine to test XS on Linux, macOS and Windows.
 
 ## Build
 
-### Linux 
+### Linux
 
 	cd $MODDABLE/xs/makefiles/lin
 	make
 
-### macOS 
+### macOS
 
 	cd $MODDABLE/xs/makefiles/mac
 	make
-	
-### Windows 
+
+### Windows
 
 	cd %MODDABLE%\xs\makefiles\win
 	build
 
 ## Download
 
-You can use the [jsvu CLI](https://github.com/GoogleChromeLabs/jsvu) to install or update  **xst**.  
+You can use the [jsvu CLI](https://github.com/GoogleChromeLabs/jsvu) to install or update  **xst**.
 
-You can also download the latest versions of `xst` 
+You can also download the latest versions of `xst`
 from the [moddable-xst](https://github.com/Moddable-OpenSource/moddable-xst/releases) repository into a directory that is on your `PATH`
 
 
 ## Usage
 
-	xst [-h] [-e] [-m] [-s] [-v] strings...
+	xst [-h] [-e] [-m] [-s] [-v] [-l] [-lc] [-b] [-j] strings...
 
 - `-h`: print this help message
 - `-e`: eval `strings`
 - `-m`: `strings` are paths to modules
 - `-s`: `strings` are paths to scripts
-- `-v`: print XS version
+- `-v`: print XS version and configuration (slot and ID sizes)
+- `-l`: execute scripts under Hardened JavaScript's `lockdown`
+- `-lc`: execute scripts inside a `Compartment` under Hardened JavaScript's `lockdown``
+- `-b` - scripts are binary buffers of UTF-8 data. Will be paassed through TextDecoder before parsing
+- `-j` - scripts are JSON and will be passed to `JSON.parse()` instead of executed
 
-Without the `-e`, `-m` or `-s` options, `strings` are paths to **test262** cases or directories. 
+
+Without the `-e`, `-m` or `-s` options, `strings` are paths to **test262** cases or directories.
 
 ### eshost
 
@@ -50,7 +56,7 @@ To test XS with **eshost**, install the [eshost CLI](https://github.com/bterlson
 ### test262
 
 To test XS with **test262**, clone [test262](https://github.com/tc39/test262) and change the directory to the `test` directory inside the `test262` directory. For instance:
-	
+
 	cd ~/test262/test
 	xst language/block-scope
 	xst built-ins/TypedArrays/buffer-arg-*

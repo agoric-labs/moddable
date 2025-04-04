@@ -83,12 +83,32 @@ LRESULT CALLBACK PiuFieldProc(HWND control, UINT message, WPARAM wParam, LPARAM 
 			break;
 		}
 	}
-	if (message == WM_SETFOCUS) {
+	else if (message == WM_SETFOCUS) {
 		PiuField* self = (PiuField*)data;
 		if ((*self)->application)
 			PiuApplicationSetFocus((*self)->application, self);
 	}
-   return DefSubclassProc(control, message, wParam, lParam);
+	else if (message == WM_CHAR) {
+		if (wParam == VK_RETURN)
+			return 0;
+	}
+	else if (message == WM_KEYDOWN) {
+  		if (wParam == VK_RETURN) {
+			PiuField* self = (PiuField*)data;
+			if ((*self)->behavior) {
+				xsBeginHost((*self)->the);
+				xsVars(2);
+				xsVar(0) = xsReference((*self)->behavior);
+				if (xsFindResult(xsVar(0), xsID_onEnter)) {
+					xsVar(1) = xsReference((*self)->reference);
+					(void)xsCallFunction1(xsResult, xsVar(0), xsVar(1));
+				}
+				xsEndHost((*self)->the);
+			}
+			return 0;
+  		}
+	}
+	return DefSubclassProc(control, message, wParam, lParam);
 }
 
 void PiuFieldBind(void* it, PiuApplication* application, PiuView* view)
@@ -106,7 +126,7 @@ void PiuFieldBind(void* it, PiuApplication* application, PiuView* view)
 	SetWindowSubclass((*self)->control, PiuFieldProc, 0, (DWORD_PTR)self);
 	if ((*self)->hint) {
 		wchar_t* buffer = xsToStringCopyW(*((*self)->hint));
-		Edit_SetCueBannerText((*self)->control, buffer);
+		Edit_SetCueBannerTextFocused((*self)->control, buffer, TRUE);
 		c_free(buffer);
 	}
 	if ((*self)->string) {
@@ -236,9 +256,11 @@ void PiuField_set_string(xsMachine *the)
 	xsSlot* string = PiuString(xsArg(0));
 	(*self)->string = string;
 	if ((*self)->application) {
+		DWORD selection = Edit_GetSel((*self)->control);
 		wchar_t* buffer = xsToStringCopyW(*string);
 		SetWindowTextW((*self)->control, buffer);
 		c_free(buffer);
+		Edit_SetSel((*self)->control, LOWORD(selection), HIWORD(selection));
 	}
 }
 

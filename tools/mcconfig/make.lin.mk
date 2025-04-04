@@ -18,24 +18,27 @@
 #
 
 PKGCONFIG = $(shell which pkg-config)
+DISPLAY ?= $(shell printenv DISPLAY)
 
 IMPLEMENTOR = $(shell grep -m 1 "CPU implementer" /proc/cpuinfo | cut -c 19-22)
 ARCH = $(shell grep -m 1 "CPU architecture" /proc/cpuinfo | cut -c 19-22)
 CHECK_ARCH = $(shell [ $1 -lt 8 ] && echo "YES")
 
+START_XSBUG =
+KILL_SERIAL2XSBUG =
+KILL_SIMULATOR =
 ifeq ($(DEBUG),1)
-	ifeq ($(XSBUG_LOG),1)
-		START_XSBUG =
-		START_SIMULATOR = export DISPLAY=:0.0 && export XSBUG_PORT=$(XSBUG_PORT) && export XSBUG_HOST=$(XSBUG_HOST) && cd $(MODDABLE)/tools/xsbug-log && node xsbug-log $(SIMULATOR) $(SIMULATORS) $(BIN_DIR)/mc.so
-		KILL_SIMULATOR = $(shell pkill mcsim)
+	ifeq ("$(XSBUG_LAUNCH)","log")
+#		START_SIMULATOR = export DISPLAY=:0.0 && export XSBUG_PORT=$(XSBUG_PORT) && export XSBUG_HOST=$(XSBUG_HOST) && cd $(MODDABLE)/tools/xsbug-log && node xsbug-log $(SIMULATOR) $(SIMULATORS) $(BIN_DIR)/mc.so
+		START_SIMULATOR = export DISPLAY=:2.0 && export XSBUG_PORT=$(XSBUG_PORT) && export XSBUG_HOST=$(XSBUG_HOST) && cd $(MODDABLE)/tools/xsbug-log && node xsbug-log $(SIMULATOR) $(SIMULATORS) $(BIN_DIR)/mc.so
 	else
-		START_XSBUG = $(shell nohup $(BUILD_DIR)/bin/lin/release/xsbug > /dev/null 2>&1 &)
+		ifeq ("$(XSBUG_LAUNCH)","app")
+			START_XSBUG = $(shell nohup $(BUILD_DIR)/bin/lin/release/xsbug > /dev/null 2>&1 &)
+		endif
 		START_SIMULATOR = $(shell export XSBUG_PORT=$(XSBUG_PORT) && export XSBUG_HOST=$(XSBUG_HOST) && nohup $(SIMULATOR) $(SIMULATORS) $(BIN_DIR)/mc.so > /dev/null 2>&1 &)
 	endif
 	KILL_SERIAL2XSBUG = $(shell pkill serial2xsbug)
-else
-	START_XSBUG =
-	KILL_SERIAL2XSBUG =
+	KILL_SIMULATOR = $(shell pkill mcsim)
 endif
 
 XS_DIRECTORIES = \
@@ -103,13 +106,8 @@ C_DEFINES = \
 	-DXS_ARCHIVE=1 \
 	-DINCLUDE_XSPLATFORM=1 \
 	-DXSPLATFORM=\"lin_xs.h\" \
-	-DmxRun=1 \
-	-DmxNoFunctionLength=1 \
-	-DmxNoFunctionName=1 \
-	-DmxHostFunctionPrimitive=1 \
-	-DmxFewGlobalsTable=1 \
-	-DkCommodettoBitmapFormat=$(DISPLAY) \
-	-DkPocoRotation=$(ROTATION)
+	-DkCommodettoBitmapFormat=$(COMMODETTOBITMAPFORMAT) \
+	-DkPocoRotation=$(POCOROTATION)
 C_DEFINES += \
 	-Wno-misleading-indentation \
 	-Wno-implicit-fallthrough
@@ -139,28 +137,14 @@ LINK_LIBRARIES = -lm -lc $(shell $(PKGCONFIG) --libs gio-2.0) -lpthread
 
 LINK_OPTIONS = -fPIC -shared -Wl,-Bdynamic\,-Bsymbolic
 
-MODDABLE_TOOLS_DIR = $(BUILD_DIR)/bin/lin/release
-BUILDCLUT = $(MODDABLE_TOOLS_DIR)/buildclut
-COMPRESSBMF = $(MODDABLE_TOOLS_DIR)/compressbmf
-RLE4ENCODE = $(MODDABLE_TOOLS_DIR)/rle4encode
-MCLOCAL = $(MODDABLE_TOOLS_DIR)/mclocal
-MCREZ = $(MODDABLE_TOOLS_DIR)/mcrez
-PNG2BMP = $(MODDABLE_TOOLS_DIR)/png2bmp
-IMAGE2CS = $(MODDABLE_TOOLS_DIR)/image2cs
-WAV2MAUD = $(MODDABLE_TOOLS_DIR)/wav2maud
-BLES2GATT = $(MODDABLE_TOOLS_DIR)/bles2gatt
-XSC = $(MODDABLE_TOOLS_DIR)/xsc
-XSID = $(MODDABLE_TOOLS_DIR)/xsid
-XSL = $(MODDABLE_TOOLS_DIR)/xsl
-
 VPATH += $(XS_DIRECTORIES)
-
-.PHONY: all	
 
 XSBUG_HOST ?= localhost
 XSBUG_PORT ?= 5002
 
-all: precursor xsbug
+.PHONY: all	build clean xsbug
+
+all: build
 	$(KILL_SERIAL2XSBUG)
 	$(KILL_SIMULATOR)
 	$(START_XSBUG)
@@ -169,18 +153,20 @@ all: precursor xsbug
 #	$(shell XSBUG_PORT=$(XSBUG_PORT) ; XSBUG_HOST=$(XSBUG_HOST) ; nohup $(SIMULATOR) $(SIMULATORS) $(BIN_DIR)/mc.so > /dev/null 2>&1 &)
 #	echo "gdb $(SIMULATOR)\nr $(BIN_DIR)/mc.so"
 
-precursor: $(LIB_DIR) $(BIN_DIR)/mc.so
-
-xsbug:
-	$(START_XSBUG)
-#	$(shell nohup $(BUILD_DIR)/bin/lin/release/xsbug > /dev/null 2>&1 &)
-
-build: precursor
+build: $(LIB_DIR) $(BIN_DIR)/mc.so
 
 clean:
-	echo "# Clean project"
+	@echo "# Clean project"
 	-rm -rf $(BIN_DIR) 2>/dev/null
 	-rm -rf $(TMP_DIR) 2>/dev/null
+
+xsbug:
+	$(KILL_SERIAL2XSBUG)
+	$(KILL_SIMULATOR)
+	$(START_XSBUG)
+	$(START_SIMULATOR)
+	
+#	$(shell nohup $(BUILD_DIR)/bin/lin/release/xsbug > /dev/null 2>&1 &)
 
 $(LIB_DIR):
 	mkdir -p $(LIB_DIR)
@@ -200,7 +186,7 @@ $(TMP_DIR)/mc.xs.c.o: $(TMP_DIR)/mc.xs.c $(HEADERS)
 	
 $(TMP_DIR)/mc.xs.c: $(MODULES) $(MANIFEST)
 	@echo "# xsl modules"
-	$(XSL) -b $(MODULES_DIR) -o $(TMP_DIR) $(PRELOADS) $(STRIPS) $(CREATION) $(MODULES)
+	xsl -b $(MODULES_DIR) -o $(TMP_DIR) $(PRELOADS) $(STRIPS) $(CREATION) $(MODULES)
 
 $(TMP_DIR)/mc.resources.c.o: $(TMP_DIR)/mc.resources.c $(HEADERS)
 	@echo "# cc" $(<F)
@@ -208,7 +194,7 @@ $(TMP_DIR)/mc.resources.c.o: $(TMP_DIR)/mc.resources.c $(HEADERS)
 
 $(TMP_DIR)/mc.resources.c: $(DATA) $(RESOURCES) $(MANIFEST)
 	@echo "# mcrez resources"
-	$(MCREZ) $(DATA) $(RESOURCES) -o $(TMP_DIR) -r mc.resources.c
+	mcrez $(DATA) $(RESOURCES) -o $(TMP_DIR) -r mc.resources.c
 	
 MAKEFLAGS += --jobs 8
 ifneq ($(VERBOSE),1)

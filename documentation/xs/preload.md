@@ -1,6 +1,6 @@
 # Using XS Preload to Optimize Applications
-Copyright 2019-2021 Moddable Tech, Inc.<BR>
-Revised: June 7, 2021
+Copyright 2019-2023 Moddable Tech, Inc.<BR>
+Revised: October 1, 2024
 
 Preloading of modules is a unique feature of the XS JavaScript engine. Preloading executes parts of a JavaScript application during the the build process, before the application is downloaded to the target device. This has two major benefits:
 
@@ -13,15 +13,17 @@ Not all modules can be preloaded because not all operations may be performed on 
 ## Specifying Modules to Preload
 A project's build manifest, usually a file named `manifest.json`, lists the modules to include together with [many other options](https://github.com/Moddable-OpenSource/moddable/blob/public/documentation/tools/manifest.md). A list of modules to preload is one optional part of the manifest.
 
-	"modules": {
-		"*": [
-			"./main",
-			"$(MODULES)/network/http/*"
-		]
-	},
-	"preload": [
-		"http"
+```json
+"modules": {
+	"*": [
+		"./main",
+		"$(MODULES)/network/http/*"
 	]
+},
+"preload": [
+	"http"
+]
+```
 
 In this example, the `http` network protocol module is preloaded but the `main` module is not. For convenience most of the examples in the Moddable SDK do not preload their `main` module, though with a little additional work they could. The details of how are described below.
 
@@ -37,7 +39,7 @@ class CountingLog {
 		trace(`${this.count++}: ${msg}\n`);
 	}
 }
-	
+
 export default CountingLog;
 ```
 
@@ -47,14 +49,14 @@ Here's another example module, one that imports `CountingLog` and extends it to 
 
 ```js
 import CountingLog from "countinglog";
-	
+
 class CountingDateLog extends CountingLog {
 	log(msg) {
 		trace(`${new Date} `);
 		super.log(msg);
 	}
 }
-	
+
 export default CountingDateLog;
 ```
 
@@ -70,7 +72,7 @@ Because XS allows objects stored in flash to be modified, code that modifies the
 
 ```js
 import CountingLog from "countinglog";
-	
+
 CountingLog.prototype.reset = function() {
 	this.count = 0;
 }
@@ -90,7 +92,7 @@ class CountingLog {
 	}
 }
 Object.freeze(CountingLog.prototype);
-	
+
 export default CountingLog;
 ```
 
@@ -104,7 +106,7 @@ JavaScript applications often use objects to store data. Here's an example from 
 ```js
 const Colors = [
 	{name: "blue", value: 0x0000FF},
-	{name: "white", value: 0xFFFF00},	
+	{name: "white", value: 0xFFFF00},
 	{name: "red", value: 0xFF0000},
 	{name: "green", value: 0x00FF00},
 	{name: "purple", value: 0xFF00FF},
@@ -133,7 +135,7 @@ Unfortunately, that obscures the data. Here's another approach:
 ```js
 const Colors = [
 	{name: "blue", value: 0x0000FF},
-	{name: "white", value: 0xFFFF00},	
+	{name: "white", value: 0xFFFF00},
 	...
 ];
 Object.freeze(Colors);
@@ -148,13 +150,15 @@ Freezing objects is more common using XS than in other JavaScript environments. 
 ```js
 const Colors = [
 	{name: "blue", value: 0x0000FF},
-	{name: "white", value: 0xFFFF00},	
+	{name: "white", value: 0xFFFF00},
 	...
 ];
 Object.freeze(Colors, true);
 ```
 
 Because this extension is not part of the JavaScript language, care should be taken to only use it in code that is intended for exclusive use by the XS engine. If equivalent functionality becomes available in a standard way such as [`harden`](https://github.com/Agoric/Harden), XS will move to use that mechanism exclusively.
+
+Hardened JavaScript formalizes recursive freeze as the `harden()` global function. XS implements `harden()` as part of its Hardened JavaScript (formerly Secure ECMAScript) support, but it is not included in Moddable SDK builds at this time.
 
 ### Automatic Freezing of Built-ins
 Following the preload build phase, the XS linker freezes the following:
@@ -176,7 +180,7 @@ class CountingLog {
 	}
 }
 Object.freeze(CountingLog.prototype);
-	
+
 export default CountingLog;
 ```
 
@@ -185,7 +189,7 @@ When this module is preloaded, the value of the `count` variable is frozen in RO
 Use `const` to declare module variables that are not intended to be modified at runtime. Declaring a module variable with `const` conveys to XS that the variable cannot be modified. This saves RAM by eliminating the pointer otherwise needed to allow the variable to be modified.
 
 ## What Cannot be Preloaded
-Preloading occurs on the build machine, not the target device. That limits the operations that may be performed during preload. 
+Preloading occurs on the build machine, not the target device. That limits the operations that may be performed during preload.
 
 ### Native Functions
 Because the build is for the target device, not the build machine, any native functions cannot be executed as they expect a different environment, perhaps even a different instruction set. If a module attempts to call a native function, an error is generated during the build.
@@ -194,7 +198,7 @@ For example, the following fails to preload because `Digital.write` is a native 
 
 ```js
 import Digital from "pins/digital";
-	
+
 Digital.write(1, 0);
 ```
 
@@ -209,7 +213,7 @@ class Example {
 	static aNativeFunction() @ "xs_nativefunction";
 }
 ```
-	
+
 Because calling a native function is not possible, this generates an error at build time:
 
 ```js
@@ -253,9 +257,38 @@ These objects cannot be stored in flash memory:
 - Generator
 - SharedArrayBuffer
 
-In the future XS may support storing additional built-in objects in flash memory. For details on built-in objects stored in flash memory see the [XS Linker Warnings](./XS%20linker%20warnings.md) document. 
+In the future XS may support storing additional built-in objects in flash memory. For details on built-in objects stored in flash memory see the [XS Linker Warnings](./XS%20linker%20warnings.md) document.
 
 These objects cannot be stored in flash. However, they maybe used during preload as long as they do not need to be stored. For example, code that executes a part of preload can safely use `RegExp` as long as there are no regular expression instances remaining when the preload phase ends.
+
+## Modifying Built-in Objects Behavior
+
+It is possible to modify the behavior of built-in objects before they are frozen by using a preloaded module since built-in objects are not frozen until preload is complete.  This allows for the extension of built-in object behavior.
+
+For example, the `Error.protoype.name` property is an ordinary property (as specified by [ECMA-262](https://tc39.es/ecma262/#sec-error.prototype.name)), which when frozen will result in throwing an error when attempting to write to `name`:
+
+
+```js
+class MyError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = "MyError"; // throws "# Exception: set name: not writable (in MyError)!"
+    }
+}
+
+const err = new MyError("My error message");
+```
+
+You can address this in your implementation of `MyError` by adding a name property to your class. However, if you need the prototype of `Error` to have `name` writable (such as when using some third-party NPM modules), you can create a preloaded module that modifies the behavior of `name` before it is frozen:
+
+```js
+Object.defineProperty(Error.prototype, "name", {
+	get: function() {return "Error";},
+	set: function(value) {
+		Object.defineProperty(this, "name", {value, writable: true, configurable: true});
+	}
+});
+```
 
 ## Preloading `main`
 The `main` module is the first application script executed. To do its work, the `main` module usually imports other modules. The `main` module of a project is often the only module that is not set to preload. This is done for convenience, and for small projects, like examples in the Moddable SDK, it is often not a problem. The application's `main` module invariably invokes native functions, to connect to Wi-Fi, display an image, or toggle a digital pin. As noted above native functions cannot be called during preload.
@@ -263,10 +296,10 @@ The `main` module is the first application script executed. To do its work, the 
 Here's a trivial example of an application that turns on one LED using a Digital pin at start-up and sets a repeating timer to toggle the state of another LED.
 
 ```js
-import Digital from "pins/digital:
-	
+import Digital from "pins/digital";
+
 let toggle = false;
-	
+
 Digital.write(1, true);
 Timer.repeat(() => {
 	toggle = !toggle;
@@ -277,11 +310,11 @@ Timer.repeat(() => {
 In the Moddable SDK runtime, if the `main` module returns a function, that function is executed immediately. This can be used to make `main` support preloading. Here is a naive example of doing that:
 
 ```js
-import Digital from "pins/digital:
-	
+import Digital from "pins/digital";
+
 export default function() {
 	let toggle = false;
-	
+
 	Digital.write(1, true);
 	Timer.repeat(() => {
 		toggle = !toggle;
@@ -293,7 +326,7 @@ export default function() {
 It is sometimes useful to organize `main` with a simple class that is instantiated from the exported function. This structures the code more cleanly and any needed state, such as `toggle` in the above example, is part of the instance state accessed using `this`.
 
 ```js
-import Digital from "pins/digital:
+import Digital from "pins/digital";
 
 class App {
 	constructor() {
@@ -326,14 +359,14 @@ const roots = [
 	1.7320508076,
 	2,
 	2.2360679775,
-	2.4494897428, 
+	2.4494897428,
 	2.6457513111,
 	2.8284271247,
 	3,
 	3.1622776602
 ];
 Object.freeze(roots);
-	
+
 function fastSquareRootToTen(x) {
 	return roots[x];
 }
@@ -346,7 +379,7 @@ const roots = [];
 for (let i = 0; i <= 10; i++)
 	roots[i] = Math.sqrt(i)
 Object.freeze(roots);
-	
+
 function fastSquareRootToTen(x) {
 	return roots[x];
 }
@@ -354,16 +387,20 @@ function fastSquareRootToTen(x) {
 
 This technique may be applied to perform more sophisticated calculations and to generate data structures more complex than arrays.
 
-## Using xsbug to Check Preloaded Modules 
+## Using xsbug to Check Preloaded Modules
 Determining if all the modules in a project are set to preload is difficult by inspecting the source code. The xsbug debugger has two features to help.
 
-In the Instruments pane, there is a "Modules loaded" area that shows the number of runtime loaded modules for each second of execution. In most projects this number should be either one or zero. 
+In the Instruments pane, there is a "Modules loaded" area that shows the number of runtime loaded modules for each second of execution. In most projects this number should be either one or zero.
 
 The module pane shows a list of all loaded modules and indicates by color which of the modules are preloaded. Modules which are preloaded are shown in blue and those loaded at runtime are shown in black.
 
 In the image below, the Instruments shows one module is loaded at the time of breakpoint and the Modules pane shows that the `main` module was loaded at runtime.
 
 ![](./../assets/preload//xsbug.png)
+
+## Additional Notes
+
+Preloaded objects may not be serialized using `JSON.stringify()`. Attempting to do so results in a "read only value" exception. This is because the implementation of `JSON.stringify()` depends on the objects being in RAM to detect cycles. A workaround is to use `structuredClone` to make a deep copy of an object that can be passed to `JSON.stringify()`.
 
 ## Conclusion
 Preloading of modules is a unique feature of the XS JavaScript engine to enable more efficient use of the limited RAM and performance of microcontrollers. It is widely supported by the modules provided in the Moddable SDK, so developers benefit from preloading even if they don't understand it fully. By understanding the preload mechanism, developers can realize its benefits for their own code. Those benefits include:

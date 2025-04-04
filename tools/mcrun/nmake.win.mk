@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2016-2017  Moddable Tech, Inc.
+# Copyright (c) 2016-2023  Moddable Tech, Inc.
 #
 #   This file is part of the Moddable SDK Tools.
 # 
@@ -23,20 +23,26 @@
 !CMDSWITCHES +S
 !ENDIF
 
-BUILDCLUT = $(BUILD_DIR)\bin\win\release\buildclut
-COMPRESSBMF = $(BUILD_DIR)\bin\win\release\compressbmf
-IMAGE2CS = $(BUILD_DIR)\bin\win\release\image2cs
-MCLOCAL = $(BUILD_DIR)\bin\win\release\mclocal
-MCREZ = $(BUILD_DIR)\bin\win\release\mcrez
-PNG2BMP = $(BUILD_DIR)\bin\win\release\png2bmp
-RLE4ENCODE = $(BUILD_DIR)\bin\win\release\rle4encode
-WAV2MAUD = $(BUILD_DIR)\bin\win\release\wav2maud
-XSC = $(BUILD_DIR)\bin\win\release\xsc
-XSL = $(BUILD_DIR)\bin\win\release\xsl
+ARCHIVE = $(BIN_DIR)\mc.xsa
 
-all: $(BIN_DIR)\mc.xsa
-	start $(SIMULATOR) $(BIN_DIR)\mc.xsa
+all: build
+	start $(SIMULATOR) $(ARCHIVE)
 
-$(BIN_DIR)\mc.xsa: $(DATA) $(MODULES) $(RESOURCES)
+build: $(ARCHIVE)
+
+clean:
+	@echo "# Clean project"
+	del /s/q/f $(BIN_DIR)\*.* > NUL
+	rmdir /s/q $(BIN_DIR)
+	del /s/q/f $(TMP_DIR)\*.* > NUL
+	rmdir /s/q $(TMP_DIR)
+	if exist $(LIB_DIR) del /s/q/f $(LIB_DIR)\*.* > NUL
+	if exist $(LIB_DIR) rmdir /s/q $(LIB_DIR)
+
+xsbug:
+	start $(SIMULATOR) $(ARCHIVE)
+
+$(ARCHIVE): $(DATA) $(MODULES) $(RESOURCES)
 	@echo # xsl mc.xsa
-	$(XSL) -a -b $(MODULES_DIR) -n $(DOT_SIGNATURE) -o $(BIN_DIR) $(DATA) $(MODULES) $(RESOURCES)
+	xsl -a -b $(MODULES_DIR) -n $(DOT_SIGNATURE) -o $(BIN_DIR) $(DATA) $(MODULES) $(RESOURCES)
+

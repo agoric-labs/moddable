@@ -79,11 +79,14 @@ static void* fxWorkerLoop(void* it)
 }
 #endif
 
+extern void fxSetArchive(xsMachine* the, void* archive);
+
 void fxWorkerInitialize(txWorker* worker)
 {
 	void* preparation = xsPreparation();
 	worker->machine = fxPrepareMachine(NULL, preparation, worker->name, worker, NULL);
     worker->machine->host = worker->ownerMachine->host;
+    fxSetArchive(worker->machine, worker->ownerMachine->archive);
 	xsBeginHost(worker->machine);
 	{
 		xsVars(3);
@@ -118,7 +121,6 @@ void fxWorkerMessage(void* machine, void* it)
 	{
 		xsVars(1);
 		xsTry {
-			xsCollectGarbage();
 			xsResult = xsDemarshall(job->argument);
 			xsVar(0) = xsAccess(*(job->reference));
 			xsCall1(xsVar(0), xsID_onmessage, xsResult);

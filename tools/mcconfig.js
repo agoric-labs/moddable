@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2022  Moddable Tech, Inc.
+ * Copyright (c) 2016-2025  Moddable Tech, Inc.
  *
  *   This file is part of the Moddable SDK Tools.
  * 
@@ -90,7 +90,7 @@ class MakeFile extends MAKEFILE {
 		for (var result of [].concat(tool.jsFiles, tool.tsFiles)) {
 			this.write("\\\n\t$(MODULES_DIR)");
 			this.write(tool.slash);
-			this.write(result.target);
+			this.write(result.target.replaceAll('#', tool.windows ? '^#' : "\\#"));
 		}	
 		for (var result of tool.cFiles) {
 			var sourceParts = tool.splitPath(result.source);
@@ -107,11 +107,12 @@ class MakeFile extends MAKEFILE {
 			this.write(sourceParts.name);
 			this.write(".h.xsi");
 		}
+
 		this.line("");
 		this.write("PRELOADS =");
 		for (var result of tool.preloads) {
 			this.write("\\\n\t-p ");
-			this.write(result);
+			this.write(result.replaceAll('#', tool.escapedHash));
 		}	
 		this.line("");
 		this.line("");
@@ -123,13 +124,13 @@ class MakeFile extends MAKEFILE {
 			var sourceParts = tool.splitPath(result.source);
 			this.line("$(TMP_DIR)", tool.slash, sourceParts.name, sourceParts.extension, ".xsi: ", source);
 			this.echo(tool, "xsid ", sourceParts.name, sourceParts.extension, ".xsi");
-			this.line("\t$(XSID) ", source, " -o $(@D)");
+			this.line("\txsid ", source, " -o $(@D)");
 		}
 		for (var result of tool.hFiles) {
 			var sourceParts = tool.splitPath(result);
 			this.line("$(TMP_DIR)", tool.slash, sourceParts.name, ".h.xsi: ", result);
 			this.echo(tool, "xsid ", sourceParts.name, ".h.xsi");
-			this.line("\t$(XSID) ", result, " -o $(@D)");
+			this.line("\txsid ", result, " -o $(@D)");
 		}
 		this.line("");
 	}
@@ -141,8 +142,8 @@ class MakeFile extends MAKEFILE {
 		}	
 		this.line("");
 		if (tool.format) {
-			this.line("DISPLAY = ", formatValues[tool.format]);
-			this.line("ROTATION = ", tool.rotation);
+			this.line("COMMODETTOBITMAPFORMAT = ", formatValues[tool.format]);
+			this.line("POCOROTATION = ", tool.rotation);
 		}
 		this.write("HEADERS =");
 		for (var header of tool.hFiles) {
@@ -315,6 +316,28 @@ class esp32NMakeFile extends NMakeFile {
 	}
 }
 
+class nrf52NMakeFile extends NMakeFile {
+	constructor(path) {
+		super(path)
+	}
+	generateObjectsRules(tool) {
+		for (var result of tool.cFiles) {
+			var source = result.source;
+			var target = result.target;
+			this.line("$(TMP_DIR)\\", target, ": ", source, " $(HEADERS)");
+			if (result.recipe) {
+				var recipe = tool.recipes[result.recipe];
+				recipe = recipe.replace(/\$</g, source);
+				this.write(recipe);
+			}
+			else {
+				this.echo(tool, "cc ", target);
+				this.line("\t$(CC) $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) ", source, " -o $@");
+			}
+		}
+	}
+}
+
 class SynergyNMakeFile extends NMakeFile {
 	constructor(path) {
 		super(path)
@@ -366,12 +389,6 @@ class CMakeListsFile extends PrerequisiteFile {
 			this.line("\tmxDebug=1");
 			this.line("\tmxInstrument=1");
 		}
-		this.line("\tmxRun=1");
-		this.line("\tmxParse=1");
-		this.line("\tmxNoFunctionLength=1");
-		this.line("\tmxNoFunctionName=1");
-		this.line("\tmxHostFunctionPrimitive=1");
-		this.line("\tmxFewGlobalsTable=1");
 		this.line(")");
 		
 		this.line("target_include_directories(tech-moddable-piu PUBLIC");
@@ -591,12 +608,6 @@ class XcodeFile extends PrerequisiteFile {
 			this.line("\t\t\t\t\t\"mxDebug=1\",");
 			this.line("\t\t\t\t\t\"mxInstrument=1\",");
 		}
-		this.line("\t\t\t\t\t\"mxRun=1\",");
-		this.line("\t\t\t\t\t\"mxParse=1\",");
-		this.line("\t\t\t\t\t\"mxNoFunctionLength=1\",");
-		this.line("\t\t\t\t\t\"mxNoFunctionName=1\",");
-		this.line("\t\t\t\t\t\"mxHostFunctionPrimitive=1\",");
-		this.line("\t\t\t\t\t\"mxFewGlobalsTable=1\",");
 		template = template.replace(/#GCC_PREPROCESSOR_DEFINITIONS#/g, this.current);
 		
 		this.current = ""
@@ -779,7 +790,7 @@ export default class extends Tool {
 			this.createDirectory(path);
 		}
 		else {
-			path += this.slash + this.platform;
+			path += this.slash + platform;
 			this.createDirectory(path);
 			if (this.subplatform) {
 				path += this.slash + this.subplatform;
@@ -1020,9 +1031,41 @@ export default class extends Tool {
 		}
 	}
 	run() {
+		if (this.platform === "esp") {
+			let base;
+			if (this.windows) {
+				base = this.environment.BASE_DIR ?? this.getenv("BASE_DIR") ?? this.getenv("USERPROFILE");
+				this.environment.BASE_DIR = base;
+				this.setenv("BASE_DIR", base);
+				base = this.resolveDirectoryPath(base + this.slash + "esp" + this.slash); 
+				if (!base)
+					throw new Error("esp directory not found");
+			}
+			else {
+				base = this.environment.ESP_BASE ?? this.getenv("ESP_BASE");
+				if (!base) {
+					base = this.resolveDirectoryPath(this.getenv("HOME") + "/esp/");
+					if (!base)
+						throw new Error("esp directory not found");
+				}
+				this.environment.ESP_BASE = base;
+				this.setenv("ESP_BASE", base);
+			}
+		
+			this.environment.ARDUINO_ROOT = base + this.slash + "esp8266-2.3.0";
+			this.setenv("ARDUINO_ROOT", this.environment.ARDUINO_ROOT);
+		}
+
 		this.localsName = "locals";
 		super.run();
-		
+
+		if (!this.manifest.creation.has)  {
+			trace("WARNING: No 'creation' found in manifests.\n");
+			trace("   Did you intend to build using mcrun?\n");
+			throw new Error("project manifest or included manifest must include creation")
+		}
+		delete this.manifest.creation.has; 
+
 		this.filterCommonjs(this.manifest.commonjs);
 		this.filterConfig(this.manifest.config);
 		this.filterCreation(this.manifest.creation);
@@ -1144,6 +1187,8 @@ export default class extends Tool {
 				file = new espNMakeFile(path);
 			else if (this.platform == "esp32")
 				file = new esp32NMakeFile(path);
+			else if (this.platform == "nrf52")
+				file = new nrf52NMakeFile(path);
 			else
 				file = new NMakeFile(path);
 		}

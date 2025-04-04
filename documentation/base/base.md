@@ -1,6 +1,6 @@
 # Base
-Copyright 2017-2022 Moddable Tech, Inc.<BR>
-Revised: August 14, 2022
+Copyright 2017-2024 Moddable Tech, Inc.<BR>
+Revised: January 19, 2024
 
 ## Table of Contents
 
@@ -27,9 +27,19 @@ The `Timer` class provides both time-based callbacks and a delay function.
 import Timer from "timer";
 ```
 
-### `Timer.set(callback[, interval, repeat])`
+Timer callbacks are invoked with `this` set to `globalThis`. Use an arrow function or `Function.prototype.bind` to bind the callback's `this` to another value.
 
-The `set` function is used to request a function be called once after a certain period.
+Each timer has two intervals: the initial interval and a repeat interval. The intervals are in milliseconds. The initial interval is the time until the callback is first invoked. The repeat interval is the time between successive invocations of the callback after the initial interval. The API reference that follows indicates how each API modifies the initial and repeat intervals.
+
+If the repeat interval is zero when the timer's callback returns, the timer is automatically cleared and can no longer be used. The repeat interval may be changed by the callback using `Timer.schedule`.
+
+The `Timer.set` and `Timer.repeat` functions create a new timer and return the ID of the timer. Timer IDs are opaque that are only useful for passing to `Timer` functions.
+
+Timer callbacks can provide the basic behaviors of `setImmediate`, `setTimeout` and `setInterval`. The [timers example]() shows how to do this.
+
+### `Timer.set(callback[, initialInterval, repeatInterval])`
+
+The `set` function requests a function be called once after a certain period. `Timer.set` returns the new timer's ID.
 
 An immediate timer is called on the next cycle through the run loop. To set an immediate timer, call `set` with a single argument.
 
@@ -51,11 +61,13 @@ Timer.set(id => trace("repeat fired\n"), 1000, 100);
 
 The callback function receives the timer id as the first argument.
 
+If `Timer.set` is called without the initial interval and repeat interval, it is an immediate one-shot timer (initial and repeat intervals are set to 0). If `Timer.set` is called with only an initial interval, it is a one-shot timer (repeat interval is set to 0). If `Timer.set` is called with both an initial and a non-zero repeat interval, it is a repeating timer.
+
 ***
 
-### `Timer.repeat(callback, interval)`
+### `Timer.repeat(callback, repeatInterval)`
 
-A repeating timer is called continuously until stopped using the `Timer.clear` function. 
+A repeating timer is called continuously until stopped using the `Timer.clear` function. `Timer.repeat` returns the new timer's ID.
 
 ```js
 Timer.repeat(id => trace("repeat fired\n"), 1000);
@@ -63,13 +75,15 @@ Timer.repeat(id => trace("repeat fired\n"), 1000);
 
 The callback function receives the timer id as the first argument.
 
+This function sets both the initial interval and repeat interval to the value specified by `repeatInterval`. Use `Timer.set` to create a timer with an initial interval that is different from the repeat interval.
+
 ***
 
-### `Timer.schedule(id [, interval[, repeat]])`
+### `Timer.schedule(id [, initialInterval[, repeatInterval]])`
 
-The `schedule` function is used to reschedule an existing timer.
+The `schedule` function reschedules or unschedules an existing timer.
 
-If called with an `interval` but no `repeat`, the timer behaves like a one shot timer created with `Timer.set`. If called with both an `interval` and `repeat`, it behaves like a repeating timer created with `Timer.set` with both `interval` and `repeat` arguments. If called with neither `interval` nor `repeat` arguments, the timer is unscheduled and will not trigger until rescheduled using `Timer.schedule`.
+If called with an initial interval but no repeat interval, the timer behaves like a one shot timer created with `Timer.set`. If called with both an initial interval and non-zero repeat interval, it behaves like a repeating timer created with `Timer.set` with both initial interval and repeat interval arguments. If called without interval arguments, the timer is unscheduled and will not trigger until rescheduled using `Timer.schedule` (an unscheduled timer is considered to have infinite initial and repeat intervals).
 
 In the following example, the callback function is triggered twice at one second intervals and then rescheduled to once every two seconds.
 
@@ -84,6 +98,8 @@ Timer.repeat(id => {
 	}
 }, 1000);
 ```
+
+When `Timer.schedule` is used to set the initial interval, the callback is next invoked after the new initial interval has elapsed.
 
 > **Note**: If the next trigger time is unknown, unscheduling a timer is preferred to scheduling for a long time in the future. Unscheduling and rescheduling a timer can more efficient than clearing a timer and later allocating a new one.
 
@@ -111,6 +127,8 @@ The `delay` function delays execution for the specified number of milliseconds.
 ```js
 Timer.delay(500);	// delay 1/2 second
 ```
+
+**Note**: In general, the preferred style of JavaScript programming is to avoid long delays that block execution. `Timer.delay` is provided because in embedded development it is common to need short delays when interacting with hardware. For longer delays, using an alternative such as a Timer callback or asynchronous execution with Promises may be more appropriate.
 
 ***
 
@@ -158,12 +176,22 @@ Time.dst = 60 * 60;	// Set DST
 The `ticks` property returns the value of a millisecond counter. The value returned does not correspond to the time of day. The milliseconds are used to calculate time differences.
 
 ```js
-let start = Time.ticks;
+const start = Time.ticks;
 for (let i = 0; i < 1000; i++)
 	;
-let stop = Time.ticks;
-trace(`Operation took ${stop - start} milliseconds\n`);
+const stop = Time.ticks;
+trace(`Operation took ${Time.delta(start, stop)} milliseconds\n`);
 ```
+
+On devices that supports multiple concurrent JavaScript virtual machines (for example, using Workers), the clock used to determine the value of the `ticks` property is the same across all virtual machines. This allows `tick` values created in one machine to be compared with values from another.
+
+The range of the value depends on the host. On most microcontrollers, the value is a signed 32-bit integer. On the simulator, it is a positive 64-bit floating point value. To determine the difference between two `ticks` values, use `Time.delta()` which is guaranteed to give a correct result for the host.
+
+***
+
+### `Time.delta(start[, end])`
+
+The `delta` function calculates the difference between two values returned by `Time.ticks`. It is guaranteed to return a correct result even when the value rolls over. If the optional `end` argument is omitted the current value of `Time.ticks` is used.
 
 ***
 
@@ -180,7 +208,9 @@ To use the `microseconds` property, include its manifest in the project manifest
 	],
 ```
 
-The `microseconds` property is used in the same way as the `ticks` property.
+The `microseconds` property is used in the same way as the `ticks` property. Like the `ticks` property, a single time source is used when there multiple concurrent virtual machines. The range of the `microseconds` property is a 64-bit floating point value.
+
+Unlike `Time.ticks`, the values returned by `Time.microseconds` may always be subtracted from one another to calculate intervals.
 
 ```js
 const start = Time.microseconds;
@@ -229,7 +259,7 @@ Debug.gc(false);	// disable garbage collector
 
 - **Source code:** [uuid](../../modules/base/uuid)
 
-The `UUID` class provides a single function to generate a [UUID](https://en.wikipedia.org/wiki/Universally_unique_identifier) string. 
+The `UUID` class provides a single function to generate a [UUID](https://en.wikipedia.org/wiki/Universally_unique_identifier) string.
 
 ```js
 import UUID from "uuid";
@@ -253,7 +283,7 @@ let value = UUID();	// 1080B49C-59FC-4A32-A38B-DE7E80117842
 - **Source code:** [deepEqual](../../modules/base/deepEqual)
 - **Tests:** [deepEqual](../../tests/modules/base/deepEqual)
 
-The `deepEqual` function implements a deep comparison between two JavaScript object. 
+The `deepEqual` function implements a deep comparison between two JavaScript object.
 
 ```js
 import deepEqual from "deepEqual";
@@ -284,16 +314,16 @@ The known differences between the Moddable SDK implementation and Node.js will n
 - **Source code:** [structuredClone](../../modules/base/structuredClone)
 - **Tests:** [structuredClone](../../tests/modules/base/structuredClone)
 
-The `structuredClone` function creates a deep copy of a JavaScript object. 
+The `structuredClone` function creates a deep copy of a JavaScript object.
 
 ```js
 import structuredClone from "structuredClone";
 ```
 
-The `structuredClone` function in the Moddable SDK implements the [algorithm](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Structured_clone_algorithm) defined by WHATWG for the web platform as much as practical, including circular references and the `transferables` option. 
+The `structuredClone` function in the Moddable SDK implements the [algorithm](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Structured_clone_algorithm) defined by WHATWG for the web platform as much as practical, including circular references and the `transferables` option.
 
 ```js
-const a = {a: 1, b: Uint8Array.of(1, 2, 3,)}
+const a = {a: 1, b: Uint8Array.of(1, 2, 3)}
 const aCopy = structuredClone(a);
 ```
 
@@ -303,7 +333,7 @@ The Moddable SDK implementation of `structuredClone` implements all [supported t
 ## class Instrumentation
 
 - **Source code:** [instrumentation](../../modules/base/instrumentation)
-- **Relevant Examples:** [instrumentation](../../examples/base/instrumentation)
+- **Relevant Examples:** [instrumentation](../../examples/base/instrumentation/instrumentation), [xsuse](../../examples/base/instrumentation/xsuse)
 
 The `Instrumentation` class returns statistics on the behavior of the runtime, including memory use, open file count, and rendering frame rate.
 
@@ -319,26 +349,61 @@ The `get` function returns the value of the instrumented item at the index speci
 let pixelsDrawn = Instrumentation.get(1);
 ```
 
-The table below describes the instrumented items that are available. The following instrumented items are reset at one second intervals: Pixels Drawn, Frames Drawn, Poco Display List Used, Piu Command List Used, Network Bytes Read, Network Bytes Written, and Garbage Collection Count. 
+The index of instrumentation items depends on the host and varies between different devices based on the supported features. Use `Instrumentation.map()` to determine the index of a specific instrumentation on the running host.
 
-| Index | Short Description | Long Description |
-| :---: | :--- | :--- |
-| 1 | Pixels drawn | The total number of pixels rendered to by Poco during the current interval. This value includes pixels drawn to a display device and pixels rendered offscreen.
-| 2 |Frames drawn | The total number of frames rendered by Poco during the most recent interval. Frames are counted by calls to Poco.prototype.end() and by Piu frame updates.
-| 3 | Network bytes read | The total number of bytes received by the Socket module during the current interval. This includes bytes received over TCP and UDP.
-| 4 | Network bytes written | The total number of bytes send by the Socket module during the current interval. This includes bytes sent using TCP and UDP.
-| 5 | Network sockets |The total number of active network sockets created by the Socket module. This includes TCP sockets, TCP listeners, and UDP sockets.
-| 6 | Timers | The number of allocated timers created by the Timer module.
-| 7 | Files | The number of open files and directory iterators created the File module.
-| 8 | Poco display list used | The peak size in bytes of the Poco display list in the current interval.
-| 9 | Piu command list used | The peak size in bytes of the Piu command list in the current interval.
-| 10 | System free memory | The number of free bytes in the system memory heap. This value is not available on the simulator.
-| 11 | Slot heap size | Number of bytes in use in the slot heap of the primary XS machine. Some of these bytes may be freed when the garbage collector next runs.
-| 12 | Chunk heap size | Number of bytes in use in the chunk heap of the primary XS machine. Some of these bytes may be freed when the garbage collector next runs.
-| 13 | Keys used | Number of runtime keys allocated by the primary XS machine. Once allocated keys are never deallocated.
-| 14 | Garbage collection count | The number of times the garbage collector has run in the current interval.
-| 15 | Modules loaded | The number of JavaScript modules that are currently loaded in the primary XS machine. This number does not include modules which are preloaded.
-| 16 | Stack peak | The maximum depth in bytes of the stack of the primary XS virtual machine during the current interval.
+### `map(name)`
+
+The `map` function returns the instrumentation index for a name.
+
+```js
+let pixelsDrawnIndex = Instrumentation.map("Pixels Drawn");
+let pixelsDrawn = Instrumentation.get(pixelsDrawnIndex);
+```
+
+If the instrumentation item named is unavailable, `map` returns `undefined`.
+
+### `name(index)`
+
+The `name` function returns the name of the instrumentation item at the specified index. It can be used to iterate through all available instrumentation items.
+
+
+```js
+for (let i = 1; true; i++) {
+	const name = Instrumentation.name(i);
+	if (!name)
+		break;
+	trace(`${name}: ${Instrumentation.get(i)}\n`);
+}
+```
+
+
+### Instrumentation items
+
+The table below describes the instrumented items that are available. The following instrumented items are reset at one second intervals: Pixels Drawn, Frames Drawn, Poco Display List Used, Piu Command List Used, Network Bytes Read, Network Bytes Written, and Garbage Collection Count.
+
+| Name | Long Description |
+| ---: | :--- |
+| `Pixels Drawn` | The total number of pixels rendered to by Poco during the current interval. This value includes pixels drawn to a display device and pixels rendered offscreen.
+| `Frames Drawn` | The total number of frames rendered by Poco during the most recent interval. Frames are counted by calls to Poco.prototype.end() and by Piu frame updates.
+| `Network Bytes Read` | The total number of bytes received by the Socket module during the current interval. This includes bytes received over TCP and UDP.
+| `Network Bytes Written` | The total number of bytes send by the Socket module during the current interval. This includes bytes sent using TCP and UDP.
+| `Network Sockets` |The total number of active network sockets created by the Socket module. This includes TCP sockets, TCP listeners, and UDP sockets.
+| `Timers` | The number of allocated timers created by the Timer module.
+| `Files` | The number of open files and directory iterators created the File module.
+| `Poco Display List Used` | The peak size in bytes of the Poco display list in the current interval.
+| `Piu Command List Used` | The peak size in bytes of the Piu command list in the current interval.
+| `Turns` | The number of times the event loop has run in the current interval.
+| `CPU 0` | The load on CPU 0 during the current interval.
+| `CPU 1` | The load on CPU 1 during the current interval.
+| `System Free Memory` | The number of free bytes in the system memory heap. This value is not available in the simulator.
+| `XS Slot Heap Used` | Number of bytes in use in the slot heap of the primary XS machine. Some of these bytes may be freed when the garbage collector next runs.
+| `XS Chunk Heap Used` | Number of bytes in use in the chunk heap of the primary XS machine. Some of these bytes may be freed when the garbage collector next runs.
+| `XS Keys Used` | Number of runtime keys allocated by the primary XS machine. Once allocated keys are never deallocated.
+| `XS Garbage Collection Count` | The number of times the garbage collector has run in the current interval.
+| `XS Modules Loaded` | The number of JavaScript modules that are currently loaded in the primary XS machine. This number does not include modules which are preloaded.
+| `XS Stack Used` | The maximum depth in bytes of the stack of the primary XS virtual machine during the current interval.
+| `XS Promises Settled` | The number of Promises settled. This is useful as a measure of Promisee/async/await activity.
+
 
 ***
 
@@ -369,6 +434,6 @@ The `CLI` class is a plug-in interface for commands used in a command line inter
 <a id="worker"></a>
 ## class Worker
 
-See the [Worker documentation](./worker.md) for more information about the `Worker` class.
+See the [Worker documentation](./worker.md) for information about the `Worker` class.
 
 

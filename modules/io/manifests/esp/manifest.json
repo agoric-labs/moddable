@@ -4,7 +4,6 @@
 	},
 	"include": [
 		"$(MODDABLE)/examples/manifest_net.json",
-		"$(MODULES)/pins/digital/manifest.json",
 		"$(MODULES)/pins/spi/manifest.json"
 	],
 	"modules": {
@@ -12,7 +11,8 @@
 			"$(IO)/common/builtinCommon",
 			"$(IO)/digital/$(PLATFORM)/*",
 			"$(IO)/i2c/$(PLATFORM)/*",
-			"$(IO)/spi/$(PLATFORM)/*"
+			"$(IO)/spi/$(PLATFORM)/*",
+			"$(MODULES)/pins/digital/esp/modGPIO"
 		],
 		"commodetto/Bitmap": "$(COMMODETTO)/commodettoBitmap",
 
@@ -24,8 +24,6 @@
 		"embedded:io/pwm": "$(IO)/pwm/$(PLATFORM)/*",
 		"embedded:io/serial": "$(IO)/serial/$(PLATFORM)/*",
 		"embedded:io/spi": "$(IO)/spi/spi",
-
-		"embedded:io/provider/MCP23017": "$(IO)/expander/*",
 
 		"embedded:io/socket/tcp": "$(IO)/socket/lwip/tcp",
 		"embedded:io/socket/udp": "$(IO)/socket/lwip/udp",

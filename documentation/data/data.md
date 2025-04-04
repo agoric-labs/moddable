@@ -1,6 +1,6 @@
 # Data
-Copyright 2017-2022 Moddable Tech, Inc.<BR>
-Revised: September 8, 2022
+Copyright 2017-2024 Moddable Tech, Inc.<BR>
+Revised: March 29, 2024
 
 ## Table of Contents
 
@@ -15,6 +15,8 @@ Revised: September 8, 2022
 <a id="base64"></a>
 ## class Base64
 
+> **Note**: Base64 encoding and decoding are now supported directly in JavaScript. See the [Base64 proposal](https://tc39.es/proposal-arraybuffer-base64/) for details. The Moddable SDK no longer uses the Base64 module. The Base64 module is still supported for compatibility but it is not recommended for use in new code.
+
 The `Base64` class provides static functions to encode and decode using the Base64 algorithm defined in [RFC 4648](https://tools.ietf.org/html/rfc4648).
 
 ```js
@@ -24,9 +26,9 @@ import Base64 from "base64";
 Include the module's manifest to use it in a project:
 
 ```json
-	"include": [
-		"$(MODULES)/data/base64/manifest.json"
-	]
+"include": [
+	"$(MODULES)/data/base64/manifest.json"
+]
 ```
 
 ### `static decode(str)`
@@ -52,6 +54,8 @@ trace(Base64.encode("hello, world") + "\n");
 <a id="hex"></a>
 ## class Hex
 
+> **Note**: Hex encoding and decoding are now supported directly in JavaScript. See the [proposal](https://tc39.es/proposal-arraybuffer-base64/) for details. The Moddable SDK no longer uses the Hex module. The Hex module is still supported for compatibility but it is not recommended for use in new code.
+
 The `Hex` class provides static functions to convert between an `ArrayBuffer` and hexadecimal encoded `String` values.
 
 ```js
@@ -61,9 +65,9 @@ import Hex from "hex";
 Include the module's manifest to use it in a project:
 
 ```json
-	"include": [
-		"$(MODULES)/data/hex/manifest.json"
-	]
+"include": [
+	"$(MODULES)/data/hex/manifest.json"
+]
 ```
 
 ### `static toBuffer(string [, separator])`
@@ -106,7 +110,7 @@ let s0 = Hex.toString(buffer, "-", "0123456789abwxyz");
 
 The `CRC8` and `CRC16` classes calculate CRC checksums on data.
 
-```
+```js
 import {CRC8} from "crc";
 import {CRC16} from "crc";
 ```
@@ -114,15 +118,15 @@ import {CRC16} from "crc";
 Include the module's manifest to use it in a project:
 
 ```json
-	"include": [
-		"$(MODULES)/data/crc/manifest.json"
-	]
+"include": [
+	"$(MODULES)/data/crc/manifest.json"
+]
 ```
 
 #### `CRC8(polynomial [, initial [, reflectInput [, reflectOutput [, xorOutput]]]])`
 #### `CRC16(polynomial [, initial [, reflectInput [, reflectOutput [, xorOutput]]]])`
 
-The `CRC8` and `CRC16` functions take a number of options used to specify the CRC checksum to calculate. 
+The `CRC8` and `CRC16` functions take a number of options used to specify the CRC checksum to calculate.
 
 | Parameter | Default | Description |
 | :---: | :---: | :--- |
@@ -136,39 +140,39 @@ The `polynomial`, `initial` and `xorOutput` values are 8-bit integers for CRC8 a
 
 The [crc example](../../examples/data/crc/main.js) demonstrates the definition of the parameters for a number of common CRC checksums:
 
-- `CRC-8` 
-- `CRC-8/CDMA2000` 
-- `CRC-8/DARC` 
-- `CRC-8/DVB-S2` 
-- `CRC-8/EBU` 
-- `CRC-8/I-CODE` 
-- `CRC-8/ITU` 
-- `CRC-8/MAXIM` 
-- `CRC-8/ROHC` 
-- `CRC-8/WCDM` 
-- `CRC-16/CCITT-FALSE` 
-- `CRC-16/ARC` 
-- `CRC-16/ARG-CCITT` 
-- `CRC-16/BUYPASS` 
-- `CRC-16/CDMA2000` 
-- `CRC-16/DDS-110` 
-- `CRC-16/DECT-R` 
-- `CRC-16/DECT-X` 
-- `CRC-16/DNP` 
-- `CRC-16/EN-13757` 
-- `CRC-16/GENIBUS` 
-- `CRC-16/MAXIM` 
-- `CRC-16/MCRF4XX` 
-- `CRC-16/RIELLO` 
-- `CRC-16/T10-DIF` 
-- `CRC-16/TELEDISK` 
-- `CRC-16/TMS37157` 
-- `CRC-16/USB` 
-- `CRC-A` 
-- `CRC-16/KERMIT` 
-- `CRC-16/MODBUS` 
-- `CRC-16/X-25` 
-- `CRC-16/XMODE` 
+- `CRC-8`
+- `CRC-8/CDMA2000`
+- `CRC-8/DARC`
+- `CRC-8/DVB-S2`
+- `CRC-8/EBU`
+- `CRC-8/I-CODE`
+- `CRC-8/ITU`
+- `CRC-8/MAXIM`
+- `CRC-8/ROHC`
+- `CRC-8/WCDM`
+- `CRC-16/CCITT-FALSE`
+- `CRC-16/ARC`
+- `CRC-16/ARG-CCITT`
+- `CRC-16/BUYPASS`
+- `CRC-16/CDMA2000`
+- `CRC-16/DDS-110`
+- `CRC-16/DECT-R`
+- `CRC-16/DECT-X`
+- `CRC-16/DNP`
+- `CRC-16/EN-13757`
+- `CRC-16/GENIBUS`
+- `CRC-16/MAXIM`
+- `CRC-16/MCRF4XX`
+- `CRC-16/RIELLO`
+- `CRC-16/T10-DIF`
+- `CRC-16/TELEDISK`
+- `CRC-16/TMS37157`
+- `CRC-16/USB`
+- `CRC-A`
+- `CRC-16/KERMIT`
+- `CRC-16/MODBUS`
+- `CRC-16/X-25`
+- `CRC-16/XMODE`
 
 
 ### `close()`
@@ -198,9 +202,9 @@ import qrCode from "qrcode";
 Include the module's manifest to use them in a project:
 
 ```json
-	"include": [
-		"$(MODULES)/data/qrcode/manifest.json"
-	]
+"include": [
+	"$(MODULES)/data/qrcode/manifest.json"
+]
 ```
 
 For additional details see the article [QR Code module for the Moddable SDK](https://blog.moddable.com/blog/qrcode/).
@@ -223,8 +227,8 @@ const code = qrCode({input: "Welcome to Moddable", maxVersion: 4});
 
 // trace QR Code to console
 code = new Uint8Array(code);
-for (let y = 0; y < = code.size; y++) {
-    for (let x = 0; x < = code.size; x++)
+for (let y = 0; y <= code.size; y++) {
+    for (let x = 0; x <= code.size; x++)
         trace(code[(y * code.size) + x] ? "X" : ".", "\n");
     trace("\n");
 }
@@ -243,10 +247,10 @@ import TextEncoder from "text/encoder";
 Include the modules' manifest to use them in a project:
 
 ```json
-	"include": [
-		"$(MODULES)/data/text/decoder/manifest.json",
-		"$(MODULES)/data/text/encoder/manifest.json"
-	]
+"include": [
+	"$(MODULES)/data/text/decoder/manifest.json",
+	"$(MODULES)/data/text/encoder/manifest.json"
+]
 ```
 
 The `TextDecoder` implements the [TextDecoder class](https://developer.mozilla.org/en-US/docs/Web/API/TextDecoder) as [specified by WHATWG](https://encoding.spec.whatwg.org/#interface-textdecoder). It accepts only UTF-8 input data.
@@ -266,10 +270,10 @@ import Deflate from "deflate";
 Include the modules' manifest to use them in a project:
 
 ```json
-	"include": [
-		"$(MODULES)/data/zlib/manifest_deflate.json",
-		"$(MODULES)/data/zlib/manifest_inflate.json"
-	]
+"include": [
+	"$(MODULES)/data/zlib/manifest_deflate.json",
+	"$(MODULES)/data/zlib/manifest_inflate.json"
+]
 ```
 
 The [inflate example](../../examples/data/inflate/main.js) demonstrates how to decompress data as a one-shot operation and using the `onData` callback for streaming.
@@ -277,8 +281,8 @@ The [inflate example](../../examples/data/inflate/main.js) demonstrates how to d
 > **Note**: A significant amount of memory is required for zlib decompression and especially for compression. These libraries may not work on all microcontrollers because of memory constraints.
 
 <a id="url"></a>
-## class URL and class URLSearchParams 
-The `URL` and `URLSearchParams` classes provide utilities for working with URLs and their search parameters. 
+## class URL and class URLSearchParams
+The `URL` and `URLSearchParams` classes provide utilities for working with URLs and their search parameters.
 
 ```js
 import URL from "url";
@@ -288,13 +292,13 @@ import {URL, URLSearchParams} from "url";
 Include the module's manifest to use it in a project:
 
 ```json
-	"include": [
-		"$(MODULES)/data/url/manifest.json"
-	]
+"include": [
+	"$(MODULES)/data/url/manifest.json"
+]
 ```
 
 `URL` implements the [URL class](https://developer.mozilla.org/en-US/docs/Web/API/URL) as [specified by WHATWG](https://url.spec.whatwg.org/#url-class). The implementation fully conforms to the standard with two exceptions: [Punycode](https://en.wikipedia.org/wiki/Punycode) and [IDNA](https://www.unicode.org/reports/tr46/) support are unimplemented. These are used primarily for the display and safe handling of user-entered URLs in browsers, which are not generally a concern on embedded systems. With some effort (and increase in code size), the implementation could support both.
 
-`URLSearchParams` implements the [URLSearchParams class](https://developer.mozilla.org/en-US/docs/Web/API/URL) as [specified by WHATWG](https://url.spec.whatwg.org/#urlsearchparams).
+`URLSearchParams` implements the [URLSearchParams class](https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams) as [specified by WHATWG](https://url.spec.whatwg.org/#urlsearchparams).
 
 [Tests for both](https://github.com/Moddable-OpenSource/moddable/tree/public/tests/modules/data/url) are included in the Moddable SDK. They are based on the tests used to validate these APIs in web browsers.

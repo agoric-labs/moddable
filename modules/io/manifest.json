@@ -2,10 +2,11 @@
 	"build": {
 		"IO": "$(MODDABLE)/modules/io"
 	},
-	"include": [
-		"$(MODDABLE)/examples/manifest_base.json",
-		"$(MODDABLE)/examples/manifest_net.json"
-	],
+	"defines": {
+		"ECMA419": {
+			"enabled": 1
+		}
+	},
 	"platforms": {
 		"esp": {
 			"include": "./manifests/esp/manifest.json"
@@ -16,11 +17,17 @@
 		"pico": {
 			"include": "./manifests/pico/manifest.json"
 		},
+		"nrf52": {
+			"include": "./manifests/nrf52/manifest.json"
+		},
 		"mac": {
 			"include": "./manifests/mac/manifest.json"
 		},
 		"lin": {
 			"include": "./manifests/lin/manifest.json"
+		},
+		"win": {
+			"include": "./manifests/win/manifest.json"
 		}
 	}
 }

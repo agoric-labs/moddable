@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2022  Moddable Tech, Inc.
+ * Copyright (c) 2021-2024 Moddable Tech, Inc.
  *
  *   This file is part of the Moddable SDK.
  * 
@@ -13,19 +13,13 @@
  */
 
 import TextDecoder from "text/decoder"
-import TLSSocket from "tlssocket";
 
-const http = new device.network.http.io({ 
-	...device.network.http,
-	host: "www.google.com",
-	port: 443,
-	socket: {
-		io: TLSSocket,
-		TCP: device.network.http.socket
-	}
+const https = new device.network.https.io({ 
+	...device.network.https,
+	host: "www.example.edu"
 });
 for (let i = 0; i < 3; i++) {
-	http.request({
+	https.request({
 		path: `/?${i}`,
 		headers: new Map([
 			["date", Date()],
@@ -42,8 +36,11 @@ for (let i = 0; i < 3; i++) {
 			const buffer = this.read(count);
 			trace(this.decoder.decode(buffer, {stream: true})); 
 		},
-		onDone() {
-			trace(this.decoder.decode(), `\n\n **DONE ${i} **\n\n`);
+		onDone(error) {
+			if (error)
+				trace(error, `\n\n **ERROR ${i} **\n\n`);
+			else
+				trace(this.decoder.decode(), `\n\n **DONE ${i} **\n\n`);
 		}
 	});
 }

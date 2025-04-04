@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2022  Moddable Tech, Inc.
+ * Copyright (c) 2016-2023  Moddable Tech, Inc.
  *
  *   This file is part of the Moddable SDK.
  * 
@@ -15,14 +15,10 @@
 import Instrumentation from "instrumentation";
 import Debug from "debug";
 
-// see modInstrumentation.h starting at kModInstrumentationSlotHeapSize
+// get instrumentation indicies for memory
 const xsInstrumentation = {
-	slot_used: 0,
-	chunk_used: 1,
-	keys_used: 2,
-	garbage_collections: 3,
-	modules_loaded: 4,
-	stack_used: 5
+	slot_used: Instrumentation.map("XS Slot Heap Used"),
+	chunk_used: Instrumentation.map("XS Chunk Heap Used"),
 };
 
 let proxyTarget = {}, proxyObject = {};
@@ -34,20 +30,11 @@ function* idMaker() {
         yield index++;
 }
 
-// xs instrumentation is at the end, by convention, so find the end and back-up
-let xsInstrumentationOffset;
-for (let i = 0; true; i++) {
-	if (undefined !== Instrumentation.get(i))
-		continue;
-	
-	xsInstrumentationOffset = i - 6;
-	break;
-}
-
-// determine the size of one slot -- assumes Object is one slot
-let slots = Instrumentation.get(xsInstrumentation.slot_used + xsInstrumentationOffset);
+// determine the size of one slot -- assumes number property takes one slot
 const holdOneSlot = {};
-const slotSize = Instrumentation.get(xsInstrumentation.slot_used + xsInstrumentationOffset) - slots; 
+let slots = Instrumentation.get(xsInstrumentation.slot_used);
+holdOneSlot.a = 1;
+const slotSize = Instrumentation.get(xsInstrumentation.slot_used) - slots; 
 Debug.gc();
 
 measure("Boolean", () => true);
@@ -62,8 +49,16 @@ measure("Object {x: 1, y: 2, z: 3}",  () => {return {x: 1, y: 2, z: 3}});
 measure("Date",  () => new Date);
 measure("BigInt 1n", () => 1n);
 measure("BigInt 100000000001n", () => 100000000001n);
-measure("Function () => {}",  () => {return () => {}});
-measure("Function closure (1 variable)",  () => {let a = 1; return function() {return a}});
+measure("Arrow Function () => {}",  () => {return () => {}});
+measure("Arrow Function () => {return Date}",  () => {return () => {return Date}});
+measure("Arrow Function () => {return this}",  () => {return () => {return this}});
+measure("Arrow Function closure (1 variable)",  () => {let a = 1; return () => {return a;l}});
+measure("Arrow Function closure (2 variables)",  () => {let a = 1, b = 2; return () => {return a + b;}});
+measure("Arrow Function closure (3 variables)",  () => {let a = 1, b = 2, c = 3; return () => {return a + b + c;}});
+measure("Function {}",  () => {return function() {}});
+measure("Function {return Date;]",  () => {return function() {return Date;}});
+measure("Function {return this;}",  () => {return function() {return this;}});
+measure("Function closure (1 variable)",  () => {let a = 1; return function() {return a;}});
 measure("Function closure (2 variables)",  () => {let a = 1, b = 2; return function() {return a + b;}});
 measure("Function closure (3 variables)",  () => {let a = 1, b = 2, c = 3; return function() {return a + b + c;}});
 measure("Generator",  () => idMaker());
@@ -114,15 +109,15 @@ function measure(name, what)
 
 	Debug.gc();
 
-	slots = Instrumentation.get(xsInstrumentation.slot_used + xsInstrumentationOffset);
-	chunks = Instrumentation.get(xsInstrumentation.chunk_used + xsInstrumentationOffset);
+	slots = Instrumentation.get(xsInstrumentation.slot_used);
+	chunks = Instrumentation.get(xsInstrumentation.chunk_used);
 
 	result = what();
 
 	Debug.gc();
 
-	slots = Instrumentation.get(xsInstrumentation.slot_used + xsInstrumentationOffset) - slots;
-	chunks = Instrumentation.get(xsInstrumentation.chunk_used + xsInstrumentationOffset) - chunks;
+	slots = Instrumentation.get(xsInstrumentation.slot_used) - slots;
+	chunks = Instrumentation.get(xsInstrumentation.chunk_used) - chunks;
 
 	if (slots && chunks)
 		trace(`${name}: ${slots / slotSize} slots + ${chunks} chunk bytes = ${slots + chunks} bytes\n`)

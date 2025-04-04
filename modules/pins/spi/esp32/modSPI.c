@@ -30,7 +30,7 @@
 #include "esp_attr.h"		// IRAM_ATTR
 #include "esp_heap_caps.h"	// MALLOC_CAP_DMA, heap_caps_malloc
 
-#include "semphr.h"
+#include "freertos/semphr.h"
 
 #ifndef MODDEF_SPI_MISO_PIN
 	#define MODDEF_SPI_MISO_PIN	12
@@ -170,7 +170,7 @@ void modSPIInit(modSPIConfiguration config)
 		buscfg.quadhd_io_num = -1;
         buscfg.max_transfer_sz = MODDEF_SPI_ESP32_TRANSACTIONSIZE;
 
-	#if kCPUESP32S3 || kCPUESP32C3
+	#if kCPUESP32S3 || kCPUESP32C3 || kCPUESP32C6 || kCPUESP32H2
 		ret = spi_bus_initialize(config->spiPort, &buscfg, SPI_DMA_CH_AUTO);
 	#elif kCPUESP32S2
 		ret = spi_bus_initialize(config->spiPort, &buscfg, config->spiPort);

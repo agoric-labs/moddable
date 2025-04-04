@@ -1,4 +1,8 @@
 {
+	"build": {
+		"PICO_EXTRAS_DIR": "$(HOME)/pico/pico-extras",
+		"PICO_EXAMPLES_DIR": "$(HOME)/pico/pico-examples"
+	},
 	"include": [
 		"$(MODULES)/files/preference/manifest.json"
 	],
@@ -21,12 +25,6 @@
 			"incremental": 64
 		},
 		"stack": 512
-	},
-	"defines": {
-		"i2c": {
-			"sda_pin": 4,
-			"scl_pin": 5
-		}
 	},
 	"preload": [
 		"timer",

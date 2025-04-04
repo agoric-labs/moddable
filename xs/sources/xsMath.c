@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2017  Moddable Tech, Inc.
+ * Copyright (c) 2016-2023  Moddable Tech, Inc.
  *
  *   This file is part of the Moddable SDK Runtime.
  * 
@@ -57,6 +57,9 @@ void fxBuildMath(txMachine* the)
 	slot = fxNextHostFunctionProperty(the, slot, mxCallback(fx_Math_cosh), 1, mxID(_cosh), XS_DONT_ENUM_FLAG);
 	slot = fxNextHostFunctionProperty(the, slot, mxCallback(fx_Math_exp), 1, mxID(_exp), XS_DONT_ENUM_FLAG);
 	slot = fxNextHostFunctionProperty(the, slot, mxCallback(fx_Math_expm1), 1, mxID(_expm1), XS_DONT_ENUM_FLAG);
+#if mxFloat16
+	slot = fxNextHostFunctionProperty(the, slot, mxCallback(fx_Math_f16round), 1, mxID(_f16round), XS_DONT_ENUM_FLAG);
+#endif
 	slot = fxNextHostFunctionProperty(the, slot, mxCallback(fx_Math_floor), 1, mxID(_floor), XS_DONT_ENUM_FLAG);
 	slot = fxNextHostFunctionProperty(the, slot, mxCallback(fx_Math_fround), 1, mxID(_fround), XS_DONT_ENUM_FLAG);
 	slot = fxNextHostFunctionProperty(the, slot, mxCallback(fx_Math_hypot), 2, mxID(_hypot_), XS_DONT_ENUM_FLAG);
@@ -65,6 +68,9 @@ void fxBuildMath(txMachine* the)
 	slot = fxNextHostFunctionProperty(the, slot, mxCallback(fx_Math_imod), 2, mxID(_imod), XS_DONT_ENUM_FLAG);
 	slot = fxNextHostFunctionProperty(the, slot, mxCallback(fx_Math_imul), 2, mxID(_imul), XS_DONT_ENUM_FLAG);
 	slot = fxNextHostFunctionProperty(the, slot, mxCallback(fx_Math_imuldiv), 2, mxID(_imuldiv), XS_DONT_ENUM_FLAG);
+#if mxECMAScript2023
+	slot = fxNextHostFunctionProperty(the, slot, mxCallback(fx_Math_irandom), 0, mxID(_irandom), XS_DONT_ENUM_FLAG);
+#endif
 	slot = fxNextHostFunctionProperty(the, slot, mxCallback(fx_Math_irem), 2, mxID(_irem), XS_DONT_ENUM_FLAG);
 	slot = fxNextHostFunctionProperty(the, slot, mxCallback(fx_Math_log), 1, mxID(_log), XS_DONT_ENUM_FLAG);
 	slot = fxNextHostFunctionProperty(the, slot, mxCallback(fx_Math_log1p), 1, mxID(_log1p), XS_DONT_ENUM_FLAG);
@@ -203,7 +209,10 @@ void fx_Math_clz32(txMachine* the)
 	txInteger r;
 	if (x)
 #if mxWindows
-		_BitScanForward(&r, x);
+	{
+		_BitScanReverse(&r, x);
+		r = 31 - r;
+	}
 #else
 		r = __builtin_clz(x);
 #endif	
@@ -314,26 +323,7 @@ void fx_Math_idiv(txMachine* the)
 
 void fx_Math_idivmod(txMachine* the)
 {
-	txInteger x = (mxArgc > 0) ? fxToInteger(the, mxArgv(0)) : 0;
-	txInteger y = (mxArgc > 1) ? fxToInteger(the, mxArgv(1)) : 0;
-	if (y == 0) {
-		mxPushNumber(C_NAN);
-		mxPushNumber(C_NAN);
-	}
-	else {
-#if mxIntegerDivideOverflowException
-		if ((x == (txInteger)0x80000000) && (y == -1)) {
-			mxPushInteger(x);
-			mxPushInteger(0);
-		}
-		else
-#endif
-		{
-			mxPushInteger(x / y);
-			mxPushInteger((x % y + y) % y);
-		}
-	}
-	fxConstructArrayEntry(the, mxResult);
+	mxTypeError("not available");
 }
 
 void fx_Math_imod(txMachine* the)
@@ -374,15 +364,36 @@ void fx_Math_imuldiv(txMachine* the)
 	}
 	else {
 		txS8 r = (x * y) / z;
-		if ((-2147483648LL <= r) && (r <= 2147483647LL)) {
-			mxResult->kind = XS_INTEGER_KIND;
-			mxResult->value.integer = (txInteger)r;
-		}
-		else {
-			mxResult->kind = XS_NUMBER_KIND;
-			mxResult->value.number = (txNumber)r;
-		}
+		mxResult->kind = XS_INTEGER_KIND;
+		mxResult->value.integer = (txInteger)(r & 0x00000000FFFFFFFF);
 	}
+}
+
+void fx_Math_irandom(txMachine* the)
+{
+	double min = 0;
+	double max = 2147483647;
+	uint32_t result;
+	if (mxArgc > 1) {
+		min = (double)fxToInteger(the, mxArgv(0));
+		max = (double)fxToInteger(the, mxArgv(1));
+	}
+	else if (mxArgc > 0) {
+		max = (double)fxToInteger(the, mxArgv(0));
+	}
+	result = c_rand();
+	while (result == C_RAND_MAX)
+		result = c_rand();
+	if (max < min)
+		mxResult->value.integer = (txInteger)c_ceil(min + (((double)result / (double)C_RAND_MAX) * (max - min)));
+	else
+		mxResult->value.integer = (txInteger)c_floor(min + (((double)result / (double)C_RAND_MAX) * (max - min)));
+	mxResult->kind = XS_INTEGER_KIND;
+}
+
+void fx_Math_irandom_secure(txMachine* the)
+{
+	mxTypeError("secure mode");
 }
 
 void fx_Math_irem(txMachine* the)
@@ -511,9 +522,10 @@ void fx_Math_pow(txMachine* the)
 
 void fx_Math_random(txMachine* the)
 {
-	uint32_t result = c_rand();
-	while (result == C_RAND_MAX)
+	uint32_t result;
+	do {
 		result = c_rand();
+	} while (result == C_RAND_MAX);
 	mxResult->kind = XS_NUMBER_KIND;
 	mxResult->value.number = (double)result / (double)C_RAND_MAX;
 }

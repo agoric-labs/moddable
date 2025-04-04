@@ -419,7 +419,7 @@ void fx_structuredCloneInstance(txMachine* the, tx_structuredCloneList* list)
 			fx_structuredCloneThrow(the, list, "generator");
 			break;
 		case XS_TYPED_ARRAY_KIND:
-			mxPush(the->stackPrototypes[-1 - (txInteger)from->value.typedArray.dispatch->constructorID]);
+			mxPush(the->stackIntrinsics[-1 - (txInteger)from->value.typedArray.dispatch->constructorID]);
 			mxGetID(mxID(_prototype));
 			result->value.instance.prototype = fxToInstance(the, the->stack);
 			mxPop();
@@ -561,7 +561,7 @@ void fx_structuredCloneSlot(txMachine* the, tx_structuredCloneList* list)
 	case XS_REFERENCE_KIND:
 		fx_structuredCloneInstance(the, list);
 		break;
-#ifdef mxHostFunctionPrimitive
+#if mxHostFunctionPrimitive
 	case XS_HOST_FUNCTION_KIND:
 		fx_structuredCloneThrow(the, list, "function");
 		break;

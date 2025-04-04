@@ -20,7 +20,7 @@ This document provides a brief description of each example and a preview of each
 
 ### `backlight`
 
-The `backlight` example allows you to adjust the backlight brightness on Moddable Two. 
+The `backlight` example allows you to adjust the backlight brightness on Moddable Two.
 
 > For more information about the backlight, see the **Backlight** section of the [Moddable Two documentation](https://github.com/Moddable-OpenSource/moddable/blob/public/documentation/devices/moddable-two.md#backlight).
 
@@ -92,7 +92,7 @@ The `easing-equations` example demonstrates the use of the easing equations buil
 
 ### `epaper-flashcards`
 
-<img src="https://www.moddable.com/assets/piu-gifs/epaper-flashcards" width=250>
+<img src="https://www.moddable.com/assets/piu-gifs/epaper-flashcards.gif" width=250>
 
 The `epaper-flashcards` example shows a sequence of flash cards. The answer is displayed when tapped. A swipe left or swipe right moves to the previous or next card.
 
@@ -102,7 +102,7 @@ The `epaper-flashcards` example shows a sequence of flash cards. The answer is d
 
 ### `epaper-photos`
 
-<img src="http://www.moddable.com/assets/piu-gifs/epaper-photos" width=180>
+<img src="http://www.moddable.com/assets/piu-gifs/epaper-photos.gif" width=180>
 
 The `epaper-photos` example displays a slideshow of photographs.
 
@@ -170,7 +170,7 @@ The `keyboard` example demonstrates the use of the keyboard module to create an 
 
 ![](http://www.moddable.com/assets/piu-gifs/list.gif)
 
-The `list` example uses a Piu `Port` object to create a scrolling list of items that may be tapped. 
+The `list` example uses a Piu `Port` object to create a scrolling list of items that may be tapped.
 
 ***
 
@@ -259,7 +259,7 @@ The `preferences` example demonstrates how to set preferences that are saved acr
 
 ![](http://www.moddable.com/assets/piu-gifs/scroller.gif)
 
-The `scroller` example shows how to create vertical and horizontal scrolling content. Tap the title bar to toggle between the two directions. 
+The `scroller` example shows how to create vertical and horizontal scrolling content. Tap the title bar to toggle between the two directions.
 
 ***
 

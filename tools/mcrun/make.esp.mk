@@ -19,11 +19,8 @@
 
 HOST_OS := $(shell uname)
 ifeq ($(HOST_OS),Darwin)
-	ifeq ($(findstring _13.,_$(shell sw_vers -productVersion)),_13.)
-		UPLOAD_PORT ?= /dev/cu.usbserial-0001
-	else ifeq ($(findstring _12.,_$(shell sw_vers -productVersion)),_12.)
-		UPLOAD_PORT ?= /dev/cu.usbserial-0001
-	else ifeq ($(findstring _11.,_$(shell sw_vers -productVersion)),_11.)
+	VERS = $(shell sw_vers -productVersion | cut -f1 -d.)
+	ifeq ($(shell test $(VERS) -gt 10; echo $$?), 0)
 		UPLOAD_PORT ?= /dev/cu.usbserial-0001
 	else
 		UPLOAD_PORT ?= /dev/cu.SLAB_USBtoUART
@@ -38,23 +35,6 @@ DEBUGGER_SPEED ?= 921600
 
 XSBUG_HOST ?= localhost
 XSBUG_PORT ?= 5002
-
-ifeq ($(HOST_OS),Darwin)
-MODDABLE_TOOLS_DIR = $(BUILD_DIR)/bin/mac/release
-else
-MODDABLE_TOOLS_DIR = $(BUILD_DIR)/bin/lin/release
-endif
-BUILDCLUT = $(MODDABLE_TOOLS_DIR)/buildclut
-COMPRESSBMF = $(MODDABLE_TOOLS_DIR)/compressbmf
-IMAGE2CS = $(MODDABLE_TOOLS_DIR)/image2cs
-MCLOCAL = $(MODDABLE_TOOLS_DIR)/mclocal
-MCREZ = $(MODDABLE_TOOLS_DIR)/mcrez
-PNG2BMP = $(MODDABLE_TOOLS_DIR)/png2bmp
-RLE4ENCODE = $(MODDABLE_TOOLS_DIR)/rle4encode
-WAV2MAUD = $(MODDABLE_TOOLS_DIR)/wav2maud
-SERIAL2XSBUG = $(MODDABLE_TOOLS_DIR)/serial2xsbug
-XSC = $(MODDABLE_TOOLS_DIR)/xsc
-XSL = $(MODDABLE_TOOLS_DIR)/xsl
 
 ARCHIVE = $(BIN_DIR)/$(NAME).xsa
 
@@ -85,11 +65,14 @@ all: $(LAUNCH)
 debug: $(ARCHIVE)
 	$(shell pkill serial2xsbug)
 	$(START_XSBUG)
-	export XSBUG_PORT=$(XSBUG_PORT) && export XSBUG_HOST=$(XSBUG_HOST) && $(SERIAL2XSBUG) $(UPLOAD_PORT) $(DEBUGGER_SPEED) 8N1 -install $(ARCHIVE)
+	export XSBUG_PORT=$(XSBUG_PORT) && export XSBUG_HOST=$(XSBUG_HOST) && serial2xsbug $(UPLOAD_PORT) $(DEBUGGER_SPEED) 8N1 -install $(ARCHIVE)
 
 release: $(ARCHIVE)
 	$(shell pkill serial2xsbug)
-	export XSBUG_PORT=$(XSBUG_PORT) && export XSBUG_HOST=$(XSBUG_HOST) && $(SERIAL2XSBUG) $(UPLOAD_PORT) $(DEBUGGER_SPEED) 8N1 -install $(ARCHIVE)
+	export XSBUG_PORT=$(XSBUG_PORT) && export XSBUG_HOST=$(XSBUG_HOST) && serial2xsbug $(UPLOAD_PORT) $(DEBUGGER_SPEED) 8N1 -install $(ARCHIVE)
+
+build: $(ARCHIVE)
+	@echo "# Target built: $(BIN_DIR)/$(NAME).xsa"
 
 debugURL: $(ARCHIVE)
 	@echo "# curl "$(NAME)".xsa "$(URL)
@@ -101,7 +84,7 @@ releaseURL: $(ARCHIVE)
 
 $(ARCHIVE): $(DATA) $(MODULES) $(RESOURCES)
 	@echo "# xsl "$(NAME)".xsa"
-	$(XSL) -a -b $(MODULES_DIR) -n $(DOT_SIGNATURE) -o $(BIN_DIR) -r $(NAME) $(DATA) $(MODULES) $(RESOURCES)
+	xsl -a -b $(MODULES_DIR) -n $(DOT_SIGNATURE) -o $(BIN_DIR) -r $(NAME) $(DATA) $(MODULES) $(RESOURCES)
 
 ifneq ($(VERBOSE),1)
 MAKEFLAGS += --silent

@@ -238,6 +238,8 @@ class ApplicationBehavior extends Behavior {
 		this.DEVICE.first.delegate("onKeyUp", key);
 	}
 	launchScreen() {
+		if (this.screenOnce)
+			return;
 		if (this.libraryPath) {
 			system.copyFile(this.libraryPath, this.localLibraryPath);
 			if (this.archivePath) {
@@ -252,6 +254,8 @@ class ApplicationBehavior extends Behavior {
 		application.distribute("onInfoChanged");
 	}
 	quitScreen() {
+		if (this.screenOnce)
+			return;
 		if (this.SCREEN)
 			this.SCREEN.quit();
 		if (system.fileExists(this.localArchivePath))
@@ -372,11 +376,33 @@ class ApplicationBehavior extends Behavior {
 		}
 	}
 	onOpenFile(application, path) {
-		let info = system.getFileInfo(path);
-		if (info.directory)
-			application.defer("doLocateSimulatorsCallback", new String(path));
-		else
-			application.defer("doOpenFileCallback", new String(path));
+		if (this.onOpenFileList)
+			this.onOpenFileList.push(new String(path));
+		else {
+			this.onOpenFileList = [new String(path)];
+			application.defer("onOpenFileCallback");
+		}
+	}
+	onOpenFileCallback(application) {
+		const paths = this.onOpenFileList;
+		delete this.onOpenFileList;
+		this.quitScreen();
+		this.screenOnce = true;
+		for (let path of paths) {
+			let info = system.getFileInfo(path);
+			if (info.directory)
+				this.doLocateSimulatorsCallback(application, path);
+			else
+				this.doOpenFileCallback(application, path);
+		}
+		delete this.screenOnce;
+		this.launchScreen();
+	}
+	onPlayingTouches(application, it) {
+		this.TOUCHES.string = it ? "Playing Touches" : "";
+	}
+	onRecordingTouches(application, it) {
+		this.TOUCHES.string = it ? "Recording Touches" : "";
 	}
 	onQuit(application) {
 		this.quitScreen();
@@ -432,6 +458,16 @@ class ApplicationBehavior extends Behavior {
 	canLocateSimulators() {
 		return true;
 	}
+	canPlayTouches(target, item) {
+		const result = this.SCREEN && this.SCREEN.running && !this.SCREEN.recordingTouches;
+		item.state = (result && this.SCREEN.playingTouches) ? 1 : 0;
+		return result;
+	}
+	canRecordTouches(target, item) {
+		const result = this.SCREEN && this.SCREEN.running && !this.SCREEN.playingTouches;
+		item.state = (result && this.SCREEN.recordingTouches) ? 1 : 0;
+		return result;
+	}
 	canReloadSimulators() {
 		return true;
 	}
@@ -454,7 +490,7 @@ class ApplicationBehavior extends Behavior {
 	doOpenFile() {
 		system.openFile({ prompt:"Open File", path:system.documentsDirectory }, path => { if (path) application.defer("doOpenFileCallback", new String(path)); });
 	}
-	doOpenFileCallback(application, path) {
+	doOpenFileCallback(application, path, flag = true) {
 		let extension = (system.platform == "win") ? ".dll" : ".so";
 		if (path.endsWith(extension)) {
 			this.quitScreen();
@@ -486,6 +522,34 @@ class ApplicationBehavior extends Behavior {
 		this.doReloadSimulators();
 		application.updateMenus();
 		application.distribute("onInfoChanged");
+	}
+	doRecordTouches() {
+		if (this.SCREEN.recordingTouches)
+			this.SCREEN.delegate("doStopRecordingTouches");
+		else
+			system.saveFile({ prompt:"Record Touches", name:"touches.dat" }, path => { if (path) application.defer("doRecordTouchesCallback", new String(path)); });
+	}
+	doRecordTouchesCallback(application, path) {
+		try  {
+			this.doReloadFile();
+			this.SCREEN.delegate("doStartRecordingTouches", path);
+		}
+		catch (e) {
+		}
+	}
+	doPlayTouches() {
+		if (this.SCREEN.recordingTouches)
+			this.SCREEN.delegate("doStopPlayingTouches");
+		else
+			system.openFile({ prompt:"Play Touches", path:system.documentsDirectory }, path => { if (path) application.defer("doPlayTouchesCallback", new String(path)); });
+	}
+	doPlayTouchesCallback(application, path) {
+		try  {
+			this.doReloadFile();
+			this.SCREEN.delegate("doStartPlayingTouches", path);
+		}
+		catch (e) {
+		}
 	}
 	doReloadSimulators() {
 		this.quitScreen();
@@ -755,7 +819,8 @@ var MainContainer = Container.template($ => ({
 				Behavior: ColorsButtonBehavior,
 			}),
 		]}), 
-		Content($, { left:0, right:0, top:26, height:1, skin:skins.paneBorder, }),
+		Label($, { anchor:"TOUCHES", top:0, height:26, style:styles.iconButton, state:1 }),
+		Content($, { left:0, right:0, top:26, height:1, skin:skins.paneBorder }),
 		Layout($, { anchor:"BODY", left:0, right:0, top:27, bottom:$.infoStatus ? 27 : 0, Behavior:DividerLayoutBehavior, contents: [
 			Container($, { left:0, width:0, top:0, bottom:0, contents: [
 				ControlsPane($, { anchor:"CONTROLS" }),
@@ -810,7 +875,9 @@ let mcsimApplication = Application.template($ => ({
 				{ title:"Reload Simulators", shift:true, key:"R", command:"ReloadSimulators" },
 				null,
 // 				{ title:"Save Screen...", key:"S", command:"SaveScreen" },
-// 				null,
+				{ state:0, titles: ["Record Touches...", "Stop Recording Touches"], key:"T", command:"RecordTouches" },
+				{ state:0, titles: ["Play Touches...", "Stop Playing Touches"], shift:true, key:"T", command:"PlayTouches" },
+				null,
 				{ title:"Quit", key:"Q", command:"Quit" },
 			],
 		},

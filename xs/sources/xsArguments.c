@@ -73,6 +73,7 @@ void fxBuildArguments(txMachine* the)
 
 txSlot* fxNewArgumentsSloppyInstance(txMachine* the, txIndex count)
 {
+	txSlot* environment = mxFrameToEnvironment(the->frame);
 	txSlot* instance;
 	txSlot* array;
 	txSlot* property;
@@ -97,7 +98,7 @@ txSlot* fxNewArgumentsSloppyInstance(txMachine* the, txIndex count)
 	while ((index < length) && (index < count)) {
 		*((txIndex*)address) = index;
 		address->ID = XS_NO_ID;
-		if (property->kind == XS_CLOSURE_KIND) {
+		if ((property < environment) && (property->kind == XS_CLOSURE_KIND)) {
 			address->kind = property->kind;
 			address->value = property->value;
 		}
@@ -218,5 +219,7 @@ txSlot* fxNewArgumentsStrictInstance(txMachine* the, txIndex count)
 
 void fxThrowTypeError(txMachine* the)
 {
+	if (mxFunction->value.reference->flag & XS_CAN_CONSTRUCT_FLAG)
+		mxTypeError("secure mode");
 	mxTypeError("strict mode");
 }
