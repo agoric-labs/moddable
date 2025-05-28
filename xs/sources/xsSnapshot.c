@@ -115,7 +115,7 @@ static void fxWriteStack(txMachine* the, txSnapshot* snapshot);
 #else
 	#define mxErrorIsErrorAdditions 0
 #endif
-#define mxCallbacksLength (496 + mxECMAScript2023Additions + mxExplicitResourceManagementAdditions + mxECMAScript2024Additions + mxUint8ArrayBase64Additions + mxModuleStuffAdditions + mxECMAScript2025Additions + mxFloat16Additions + mxImmutableArrayBuffersAdditions  + mxErrorIsErrorAdditions )
+#define mxCallbacksLength (497 + mxECMAScript2023Additions + mxExplicitResourceManagementAdditions + mxECMAScript2024Additions + mxUint8ArrayBase64Additions + mxModuleStuffAdditions + mxECMAScript2025Additions + mxFloat16Additions + mxImmutableArrayBuffersAdditions  + mxErrorIsErrorAdditions )
 
 static txCallback gxCallbacks[mxCallbacksLength] = {
 	fx_AggregateError,
@@ -585,6 +585,7 @@ static txCallback gxCallbacks[mxCallbacksLength] = {
 	fxAsyncGeneratorResolveAwait,
 	fxAsyncGeneratorResolveYield,
 	fxAsyncFromSyncIteratorDone,
+	fxAsyncFromSyncIteratorFailed,
 	fxArrayLengthGetter,
 	fxArrayLengthSetter,
 	fxExecuteModulesFulfilled,
